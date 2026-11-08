@@ -10,9 +10,13 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "verify:specs": "node scripts/verify-specs.js"
+    "verify:specs": "node scripts/verify-specs.js",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "typescript": "^5.7.3",
     "vitest": "^3.0.5"
   },

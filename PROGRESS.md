@@ -10,7 +10,7 @@
 flowchart LR
     E1["Entrega 1: Fundação & Core MVP ✅"] --> E2["Entrega 2: @gestolivre/ui & Revisão de Amostras ✅"]
     E2 --> E3["Entrega 3: PWA Offline, Exemplos CAA/Dino & CI SDD ✅"]
-    E3 --> E4["Entrega 4: Auditoria Final WCAG 2.2 AA & Preparação npm 📋"]
+    E3 --> E4["Entrega 4: Auditoria WCAG 2.2 AA (axe-core) & Changesets ✅"]
 ```
 
 ---
@@ -45,7 +45,7 @@ flowchart LR
 | **RNF-03** | Desempenho | Treino em $\le 5$s com k-NN | ✅ Concluído | `packages/core/src/classifiers/knn.ts` | 19 ms no teste |
 | **RNF-04** | Privacidade | Zero upload de imagens ou vídeo; apenas landmarks | ✅ Concluído | Arquitetura local | Verificado |
 | **RNF-05** | Privacidade | Funcionamento offline após 1º carregamento (PWA) | ✅ Concluído | `apps/studio/public/sw.js` & manifest | PWA Service Worker |
-| **RNF-07** | Acessibilidade | WCAG 2.2 AA (contraste, foco, alvos $\ge 44$px) | ✅ Concluído | `apps/studio/src/index.css` | Verificado |
+| **RNF-07** | Acessibilidade | WCAG 2.2 AA (contraste, foco, alvos $\ge 44$px) | ✅ Concluído | `packages/ui/tests/accessibility.test.tsx` | 4 testes com `axe-core` |
 
 ---
 
@@ -72,22 +72,22 @@ flowchart LR
 ### Entrega 3: PWA Offline, Exemplos CAA/Dino e CI SDD Automatizado
 - **PWA Offline Completo (RNF-05)**:
   - Web App Manifest (`apps/studio/public/manifest.webmanifest`) com ícone SVG nativo.
-  - Service Worker (`apps/studio/public/sw.js`) configurado com estratégias de cache para código da aplicação e para os modelos WASM do MediaPipe, permitindo funcionamento 100% desconectado após o primeiro carregamento.
-- **Exemplo 2 — Comunicador Vocal por Piscada/Rosto (`examples/02-communicator`)**:
-  - Prancha completa de Comunicação Aumentativa e Alternativa (CAA) com 8 cartões essenciais (Água, Sim, Não, Dor, Ajuda, etc.) e fala instantânea via Web Speech API.
+  - Service Worker (`apps/studio/public/sw.js`) com cache de ativos e dos modelos WASM do MediaPipe.
+- **Exemplo 2 — Comunicador Vocal CAA (`examples/02-communicator`)**:
+  - Prancha com 8 cartões essenciais e síntese de voz para pessoas não-verbalizadas.
 - **Exemplo 3 — Jogo do Dinossauro (`examples/03-dino-game`)**:
-  - Jogo Canvas estilo Chrome Dino controlado por salto disparado pela abertura de boca ou movimento corporal.
-- **CI e Validação Contínua de Rastreabilidade (SDD)**:
-  - Script `scripts/verify-specs.js` que audita o repositório e garante que 100% dos requisitos "Must" possuem testes implementados.
-  - Workflow GitHub Actions (`.github/workflows/ci.yml`) validando SDD, Typecheck, Testes e Build em cada PR.
-- **Validação**: 19 testes automatizados passando (100%), typecheck com 0 erros, build concluído.
+  - Jogo Canvas estilo Chrome Dino controlado por salto facial.
+- **CI SDD Automatizado**:
+  - Script `scripts/verify-specs.js` que audita 19 requisitos vinculados a testes.
+  - Workflow GitHub Actions (`.github/workflows/ci.yml`).
 
----
-
-## 🎯 Próxima Entrega Imediata (Entrega 4)
-
-1. **Auditoria Acessibilidade WCAG 2.2 AA**:
-   - Integração de testes automatizados com `axe-core` para garantir ausência de violações graves/críticas de acessibilidade.
-2. **Empacotamento e Publicação**:
-   - Configuração de Changesets para versionamento semântico (`changeset`).
-   - Guia de publicação no npm para `@gestolivre/core`, `@gestolivre/actions` e `@gestolivre/ui`.
+### Entrega 4: Auditoria de Acessibilidade (axe-core) e Publicação (Changesets)
+- **Auditoria WCAG 2.2 AA Automatizada (CA-RNF-04)**:
+  - Testes automatizados com `axe-core` em `packages/ui/tests/accessibility.test.tsx` cobrindo todos os componentes visuais interativos.
+  - Resultado: **Zero violações graves ou críticas** detectadas.
+- **Changesets e Versionamento Semântico**:
+  - Configuração de `.changeset/config.json`.
+  - Scripts `pnpm changeset`, `pnpm version-packages` e `pnpm release` adicionados ao `package.json`.
+- **Guia de Contribuição**:
+  - Criação de `CONTRIBUTING.md` com padrões de código, comandos e fluxo SDD.
+- **Validação Global**: **23 testes automatizados passando (100%)**.
