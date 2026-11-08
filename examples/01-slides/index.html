@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GestoLivre — Passador de Slides por Gestos</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0f172a;
+        color: #f8fafc;
+        font-family: system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .slide-card {
+        background: #1e293b;
+        border: 2px solid #334155;
+        border-radius: 1.5rem;
+        padding: 3rem 4rem;
+        max-width: 700px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      }
+      h1 {
+        font-size: 2.5rem;
+        color: #38bdf8;
+        margin-bottom: 1rem;
+      }
+      p {
+        font-size: 1.25rem;
+        color: #cbd5e1;
+        line-height: 1.6;
+      }
+      .controls {
+        margin-top: 2rem;
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+      }
+      button {
+        background: #0284c7;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.75rem;
+        font-size: 1rem;
+        cursor: pointer;
+        font-weight: 600;
+        transition: background 0.2s;
+      }
+      button:hover {
+        background: #0369a1;
+      }
+      .indicator {
+        margin-top: 1.5rem;
+        font-size: 0.9rem;
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="slide-card">
+      <div id="slide-number" style="font-weight: bold; color: #10b981; margin-bottom: 0.5rem">SLIDE 1 DE 4</div>
+      <h1 id="slide-title">GestoLivre: Acessibilidade Sem Barreiras</h1>
+      <p id="slide-content">
+        Controle apresentações inteiras sem tocar no teclado ou mouse. Utilize movimentos de cabeça, sobrancelhas ou gestos de mão.
+      </p>
+      <div class="controls">
+        <button id="btn-prev" onclick="changeSlide(-1)">◀ Anterior (Sobrancelha / Punho)</button>
+        <button id="btn-next" onclick="changeSlide(1)">Próximo (Piscada / Mão Aberta) ▶</button>
+      </div>
+      <div class="indicator" id="status-indicator">Aguardando gestos do Studio...</div>
+    </div>
+
+    <script>
+      const slides = [
+        {
+          num: "SLIDE 1 DE 4",
+          title: "GestoLivre: Acessibilidade Sem Barreiras",
+          content: "Controle apresentações inteiras sem tocar no teclado ou mouse. Utilize movimentos de cabeça, sobrancelhas ou gestos de mão."
+        },
+        {
+          num: "SLIDE 2 DE 4",
+          title: "100% Local e Privado",
+          content: "Seus dados biométricos e vídeos nunca saem da sua máquina. O modelo roda inteiramente no navegador via MediaPipe Tasks Vision."
+        },
+        {
+          num: "SLIDE 3 DE 4",
+          title: "Calibração Sob Medida",
+          content: "Cada corpo é único. Com apenas 40 amostras em 30 segundos, o classificador k-NN aprende seu movimento específico com alta precisão."
+        },
+        {
+          num: "SLIDE 4 DE 4",
+          title: "Inicie Seu Teste Agora",
+          content: "Abra o GestoLivre Studio, grave seus movimentos, associe a ação de 'Pressionar Tecla' ou 'Clique' e comande sua vida digital!"
+        }
+      ];
+
+      let currentIndex = 0;
+
+      function renderSlide() {
+        const s = slides[currentIndex];
+        document.getElementById("slide-number").textContent = s.num;
+        document.getElementById("slide-title").textContent = s.title;
+        document.getElementById("slide-content").textContent = s.content;
+      }
+
+      function changeSlide(direction) {
+        currentIndex = (currentIndex + direction + slides.length) % slides.length;
+        renderSlide();
+      }
+
+      // Suporte a teclas simuladas
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === "Space") {
+          changeSlide(1);
+        } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+          changeSlide(-1);
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,916 @@
+import React, { useState, useRef, useEffect } from "react";
+import {
+  Camera,
+  CameraOff,
+  ShieldCheck,
+  AlertOctagon,
+  Play,
+  RotateCcw,
+  Download,
+  Upload,
+  Trash2,
+  Sliders,
+  CheckCircle,
+  AlertTriangle,
+} from "lucide-react";
+import {
+  CameraManager,
+  VisionDetector,
+  LandmarkNormalizer,
+  KNNClassifier,
+  DecisionEngine,
+  ProfileManager,
+  GestureProfile,
+  GestureDefinition,
+  GestureSample,
+  ActionDefinition,
+  VisionSource,
+  TrainingEvaluationReport,
+  ClassificationPrediction,
+} from "@gestolivre/core";
+import { ActionDispatcher } from "@gestolivre/actions";
+
+export function App() {
+  // Estado de Câmera e Visão
+  const [cameraActive, setCameraActive] = useState(false);
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<string>("");
+  const [activeSources, setActiveSources] = useState<VisionSource[]>(["face", "hand"]);
+  const [showLandmarks, setShowLandmarks] = useState(true);
+  const [fps, setFps] = useState(0);
+  const [latencyMs, setLatencyMs] = useState(0);
+
+  // Instâncias do Core
+  const cameraRef = useRef<CameraManager>(new CameraManager());
+  const detectorRef = useRef<VisionDetector>(new VisionDetector({ sources: ["face", "hand"] }));
+  const classifierRef = useRef<KNNClassifier>(new KNNClassifier({ k: 5 }));
+  const engineRef = useRef<DecisionEngine>(new DecisionEngine());
+  const profileManagerRef = useRef<ProfileManager>(new ProfileManager());
+  const actionDispatcherRef = useRef<ActionDispatcher>(new ActionDispatcher());
+
+  // Perfil e Gestos
+  const [profile, setProfile] = useState<GestureProfile>(() =>
+    profileManagerRef.current.createDefaultProfile("Meu Perfil de Acessibilidade")
+  );
+  const [trainingReport, setTrainingReport] = useState<TrainingEvaluationReport | null>(null);
+
+  // Gravação de Amostras
+  const [recordingGesture, setRecordingGesture] = useState<string | null>(null);
+  const [recordingCountdown, setRecordingCountdown] = useState<number | null>(null);
+  const [sampleCount, setSampleCount] = useState<number>(0);
+  const targetSamples = 40;
+
+  // Reconhecimento ao Vivo e Anti-Disparo
+  const [isPaused, setIsPaused] = useState(false);
+  const [currentPrediction, setCurrentPrediction] = useState<ClassificationPrediction | null>(null);
+  const [activeGestureUI, setActiveGestureUI] = useState<string | null>(null);
+  const [actionLogs, setActionLogs] = useState<
+    { id: string; time: string; gesture: string; actionType: string; status: string }[]
+  >([]);
+
+  // Novo Gesto Modal/Form
+  const [newGestureName, setNewGestureName] = useState("");
+  const [newGestureActionType, setNewGestureActionType] = useState<"speech" | "key" | "webhook">("speech");
+  const [newGestureActionValue, setNewGestureActionValue] = useState("Olá, mundo!");
+
+  // Elementos DOM
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animFrameRef = useRef<number | null>(null);
+
+  // Carrega dispositivos disponíveis
+  useEffect(() => {
+    cameraRef.current.getAvailableDevices().then((devs: MediaDeviceInfo[]) => {
+      setDevices(devs);
+      if (devs.length > 0 && !selectedDevice) {
+        setSelectedDevice(devs[0].deviceId);
+      }
+    });
+  }, [selectedDevice]);
+
+  // Tecla de Emergência: Escape ou Barra de Espaço para Pausa Imediata (< 200ms)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        toggleEmergencyPause();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isPaused]);
+
+  // Registra eventos do motor de decisão
+  useEffect(() => {
+    const engine = engineRef.current;
+
+    const onStart = (payload: { name: string; confidence: number; timestamp: number }) => {
+      setActiveGestureUI(payload.name);
+
+      // Procura ação vinculada ao gesto
+      const gestureDef = profile.gestures.find((g: GestureDefinition) => g.name === payload.name);
+      const actionDef = profile.actions.find((a: ActionDefinition) => a.id === gestureDef?.actionId);
+
+      const logItem = {
+        id: Math.random().toString(36).substring(2, 9),
+        time: new Date().toLocaleTimeString(),
+        gesture: payload.name,
+        actionType: actionDef ? actionDef.type : "Sem ação",
+        status: "Disparado",
+      };
+
+      setActionLogs((prev) => [logItem, ...prev.slice(0, 19)]);
+
+      if (actionDef) {
+        actionDispatcherRef.current.dispatch(
+          actionDef.type,
+          actionDef.payload,
+          {
+            gestureName: payload.name,
+            confidence: payload.confidence,
+            timestamp: payload.timestamp,
+          }
+        );
+      }
+    };
+
+    const onEnd = () => {
+      setActiveGestureUI(null);
+    };
+
+    engine.on("gesturestart", onStart);
+    engine.on("gestureend", onEnd);
+
+    return () => {
+      engine.off("gesturestart", onStart);
+      engine.off("gestureend", onEnd);
+    };
+  }, [profile]);
+
+  const toggleEmergencyPause = () => {
+    if (engineRef.current.isPaused()) {
+      engineRef.current.resume();
+      setIsPaused(false);
+    } else {
+      engineRef.current.pause();
+      setIsPaused(true);
+      setActiveGestureUI(null);
+    }
+  };
+
+  // Iniciar / Parar Câmera
+  const toggleCamera = async () => {
+    if (cameraActive) {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      cameraRef.current.stop();
+      setCameraActive(false);
+      setFps(0);
+      setLatencyMs(0);
+    } else {
+      if (!videoRef.current) return;
+      try {
+        await detectorRef.current.initialize();
+        await cameraRef.current.start(videoRef.current, {
+          deviceId: selectedDevice || undefined,
+          mirror: true,
+        });
+        setCameraActive(true);
+        startVisionLoop();
+      } catch (err: unknown) {
+        const error = err as Error;
+        alert(error.message || "Erro ao iniciar a câmera.");
+      }
+    }
+  };
+
+  // Loop de Processamento de Visão
+  const recordingStateRef = useRef({
+    recording: false,
+    gestureName: "",
+    count: 0,
+  });
+
+  const startVisionLoop = () => {
+    const loop = () => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+
+      if (video && video.readyState >= 2 && canvas) {
+        const timestamp = performance.now();
+        const frame = detectorRef.current.detectFrame(video, timestamp);
+        const metrics = detectorRef.current.getMetrics();
+        setFps(metrics.fps);
+        setLatencyMs(metrics.latencyMs);
+
+        // Renderiza Landmarks no Canvas Overlay
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 480;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          if (showLandmarks) {
+            drawLandmarks(ctx, frame, canvas.width, canvas.height);
+          }
+        }
+
+        // Extrai vetor de características normalizado
+        const vector = LandmarkNormalizer.extractVector(frame, activeSources, { mirror: true });
+
+        // Coleta de Amostras se estiver gravando
+        if (recordingStateRef.current.recording && vector.length > 0) {
+          const sample: GestureSample = {
+            id: "s_" + Math.random().toString(36).substring(2, 9),
+            gestureName: recordingStateRef.current.gestureName,
+            timestamp: Date.now(),
+            vector,
+          };
+
+          setProfile((prev: GestureProfile) => ({
+            ...prev,
+            samples: [...prev.samples, sample],
+          }));
+
+          recordingStateRef.current.count++;
+          setSampleCount(recordingStateRef.current.count);
+
+          if (recordingStateRef.current.count >= targetSamples) {
+            recordingStateRef.current.recording = false;
+            setRecordingGesture(null);
+            setRecordingCountdown(null);
+          }
+        }
+
+        // Inferência em tempo real se o modelo estiver treinado
+        if (vector.length > 0 && classifierRef.current.isTrained() && !recordingStateRef.current.recording) {
+          const pred = classifierRef.current.predict(vector);
+          setCurrentPrediction(pred);
+          engineRef.current.processFrame(pred);
+        }
+      }
+
+      animFrameRef.current = requestAnimationFrame(loop);
+    };
+
+    animFrameRef.current = requestAnimationFrame(loop);
+  };
+
+  // Desenha landmarks de forma leve no Canvas
+  const drawLandmarks = (
+    ctx: CanvasRenderingContext2D,
+    frame: ReturnType<typeof detectorRef.current.detectFrame>,
+    w: number,
+    h: number
+  ) => {
+    ctx.save();
+    // Espelha o canvas para alinhar com o vídeo
+    ctx.translate(w, 0);
+    ctx.scale(-1, 1);
+
+    // Mãos
+    if (frame.hands?.landmarks) {
+      ctx.fillStyle = "#38bdf8";
+      for (const hand of frame.hands.landmarks) {
+        for (const pt of hand) {
+          ctx.beginPath();
+          ctx.arc(pt.x * w, pt.y * h, 3, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+      }
+    }
+
+    // Rosto
+    if (frame.face?.landmarks) {
+      ctx.fillStyle = "#34d399";
+      // Desenha pontos principais para não sobrecarregar
+      const keyIndices = [1, 33, 263, 61, 291, 13, 14, 159, 386];
+      for (const idx of keyIndices) {
+        const pt = frame.face.landmarks[idx];
+        if (pt) {
+          ctx.beginPath();
+          ctx.arc(pt.x * w, pt.y * h, 4, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+      }
+    }
+
+    ctx.restore();
+  };
+
+  // Iniciar Gravação com Contagem Regressiva
+  const startRecording = (gestureName: string) => {
+    if (!cameraActive) {
+      alert("Ative a câmera antes de iniciar a gravação.");
+      return;
+    }
+
+    setRecordingGesture(gestureName);
+    setRecordingCountdown(3);
+    setSampleCount(0);
+
+    let count = 3;
+    const interval = setInterval(() => {
+      count--;
+      if (count > 0) {
+        setRecordingCountdown(count);
+      } else {
+        clearInterval(interval);
+        setRecordingCountdown(null);
+        recordingStateRef.current = {
+          recording: true,
+          gestureName,
+          count: 0,
+        };
+      }
+    }, 1000);
+  };
+
+  // Treinar Modelo
+  const handleTrain = async () => {
+    try {
+      if (profile.samples.length === 0) {
+        alert("Grave amostras antes de treinar.");
+        return;
+      }
+      const report = await classifierRef.current.train(profile.samples);
+      engineRef.current.registerGestureConfigs(profile.gestures);
+      setTrainingReport(report);
+      await profileManagerRef.current.saveProfile(profile);
+    } catch (err: unknown) {
+      const error = err as Error;
+      alert(`Erro no treino: ${error.message}`);
+    }
+  };
+
+  // Adicionar Gesto Personalizado
+  const handleAddGesture = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGestureName.trim()) return;
+
+    const actionId = "act_" + Math.random().toString(36).substring(2, 9);
+    const gestureId = "gst_" + Math.random().toString(36).substring(2, 9);
+
+    const gestureDef: GestureDefinition = {
+      id: gestureId,
+      name: newGestureName.trim(),
+      sources: activeSources,
+      threshold: 0.85,
+      holdMs: 300,
+      cooldownMs: 1000,
+      mode: "single",
+      actionId,
+    };
+
+    const actionPayload: Record<string, unknown> = {};
+    if (newGestureActionType === "speech") actionPayload.text = newGestureActionValue;
+    if (newGestureActionType === "key") actionPayload.key = newGestureActionValue;
+    if (newGestureActionType === "webhook") actionPayload.url = newGestureActionValue;
+
+    const actionDef: ActionDefinition = {
+      id: actionId,
+      name: `Ação para ${gestureDef.name}`,
+      type: newGestureActionType,
+      payload: actionPayload,
+    };
+
+    setProfile((prev: GestureProfile) => ({
+      ...prev,
+      gestures: [...prev.gestures, gestureDef],
+      actions: [...prev.actions, actionDef],
+    }));
+
+    engineRef.current.registerGestureConfig(gestureDef);
+    setNewGestureName("");
+    setNewGestureActionValue("");
+  };
+
+  // Excluir Gesto
+  const handleDeleteGesture = (name: string) => {
+    if (!confirm(`Excluir o gesto "${name}" e todas as suas amostras?`)) return;
+    setProfile((prev: GestureProfile) => ({
+      ...prev,
+      gestures: prev.gestures.filter((g: GestureDefinition) => g.name !== name),
+      samples: prev.samples.filter((s: GestureSample) => s.gestureName !== name),
+    }));
+  };
+
+  // Exportar Perfil
+  const handleExportProfile = () => {
+    const json = profileManagerRef.current.exportProfileJson(profile);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${profile.name.toLowerCase().replace(/\s+/g, "_")}.gestolivre.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Importar Perfil
+  const handleImportProfile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const content = ev.target?.result as string;
+        const imported = profileManagerRef.current.importProfileJson(content);
+        setProfile(imported);
+        engineRef.current.registerGestureConfigs(imported.gestures);
+        if (imported.samples.length > 0) {
+          await classifierRef.current.train(imported.samples);
+        }
+        alert("Perfil importado com sucesso!");
+      } catch (err: unknown) {
+        const error = err as Error;
+        alert(`Erro ao importar: ${error.message}`);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Alternar Fonte Ativa
+  const toggleSource = (src: VisionSource) => {
+    const nextSources = activeSources.includes(src)
+      ? activeSources.filter((s) => s !== src)
+      : [...activeSources, src];
+    setActiveSources(nextSources);
+    detectorRef.current.setSources(nextSources);
+  };
+
+  // Limpeza Geral (LGPD)
+  const handleWipeAll = async () => {
+    if (confirm("ATENÇÃO: Deseja apagar permanentemente todos os gestos, amostras e perfis locais?")) {
+      await profileManagerRef.current.clearAllData();
+      const defaultProf = profileManagerRef.current.createDefaultProfile();
+      setProfile(defaultProf);
+      setTrainingReport(null);
+      setActionLogs([]);
+      alert("Todos os dados locais foram excluídos.");
+    }
+  };
+
+  const hasNeutralSamples = profile.samples.some((s: GestureSample) => s.gestureName === "neutro");
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      {/* Barra de Navegação Superior */}
+      <header className="bg-slate-800/80 backdrop-blur border-b border-slate-700 px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50">
+        <div className="flex items-center gap-3">
+          <span className="text-3xl" role="img" aria-label="Logo Mão e Janela">
+            🪟✋
+          </span>
+          <div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-sky-400 to-emerald-400 bg-clip-text text-transparent">
+              GestoLivre Studio
+            </h1>
+            <p className="text-xs text-slate-400">Reconhecimento por Webcam 100% Local · WCAG 2.2 AA</p>
+          </div>
+        </div>
+
+        {/* Controles de Emergência e Indicadores */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={toggleEmergencyPause}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition shadow-lg ${
+              isPaused
+                ? "bg-amber-600 hover:bg-amber-500 text-white animate-pulse"
+                : "bg-rose-600 hover:bg-rose-500 text-white"
+            }`}
+            title="Atalho de teclado: Escape"
+            aria-label={isPaused ? "Retomar reconhecimento de gestos" : "Pausa de emergência no reconhecimento"}
+          >
+            <AlertOctagon className="w-5 h-5" />
+            <span>{isPaused ? "RECONHECIMENTO PAUSADO" : "PAUSA DE EMERGÊNCIA (Esc)"}</span>
+          </button>
+
+          {cameraActive && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 rounded-full text-xs font-medium">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+              <span>Câmera Ativa</span>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Conteúdo Principal */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Painel Esquerdo: Vídeo, Controles da Câmera e Diagnóstico (5 colunas) */}
+        <section className="lg:col-span-5 flex flex-col gap-5" aria-labelledby="heading-camera">
+          <h2 id="heading-camera" className="sr-only">
+            Visão e Câmera
+          </h2>
+
+          {/* Banner de Privacidade RF-CAM-01 */}
+          {!privacyAgreed && (
+            <div className="bg-sky-950/60 border border-sky-500/40 rounded-xl p-4 flex gap-3 text-sm text-sky-200">
+              <ShieldCheck className="w-6 h-6 text-sky-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-sky-100">Privacidade Absoluta Garantida (LGPD)</p>
+                <p className="text-xs text-sky-300 mt-1">
+                  Nenhum vídeo, foto ou áudio sai do seu computador. Os cálculos de aprendizado de máquina ocorrem
+                  estritamente no seu navegador usando coordenadas geométricas.
+                </p>
+                <button
+                  onClick={() => setPrivacyAgreed(true)}
+                  className="mt-2 text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium px-3 py-1.5 rounded transition"
+                >
+                  Entendi e Concordo
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Área de Visualização da Webcam + Canvas */}
+          <div className="relative aspect-[4/3] bg-slate-950 rounded-2xl overflow-hidden border border-slate-700 shadow-2xl flex items-center justify-center">
+            <video
+              ref={videoRef}
+              playsInline
+              muted
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ transform: "scaleX(-1)" }}
+            />
+            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+
+            {!cameraActive && (
+              <div className="text-center p-6 flex flex-col items-center gap-3 text-slate-400 z-10">
+                <CameraOff className="w-12 h-12 text-slate-500" />
+                <p className="text-sm font-medium">A câmera está desativada.</p>
+                <button
+                  onClick={toggleCamera}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-2.5 rounded-xl transition shadow-lg"
+                >
+                  <Camera className="w-5 h-5" />
+                  <span>Ativar Câmera</span>
+                </button>
+              </div>
+            )}
+
+            {/* Overlay de Gravação em Andamento */}
+            {recordingGesture && (
+              <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-20">
+                {recordingCountdown !== null ? (
+                  <div className="text-center">
+                    <p className="text-slate-300 text-lg mb-2">Prepare-se para o gesto:</p>
+                    <p className="text-emerald-400 font-bold text-2xl mb-4">"{recordingGesture}"</p>
+                    <div className="text-7xl font-extrabold text-white animate-bounce">{recordingCountdown}</div>
+                  </div>
+                ) : (
+                  <div className="w-full max-w-xs text-center">
+                    <p className="text-amber-400 font-semibold mb-2 animate-pulse">
+                      Gravando "{recordingGesture}"...
+                    </p>
+                    <p className="text-xs text-slate-300 mb-4">Mova levemente a cabeça ou mão para gerar variação</p>
+                    <div className="w-full bg-slate-700 rounded-full h-4 overflow-hidden border border-slate-600">
+                      <div
+                        className="bg-emerald-500 h-full transition-all duration-75"
+                        style={{ width: `${(sampleCount / targetSamples) * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-sm text-slate-300 mt-2 font-mono">
+                      {sampleCount} / {targetSamples} amostras
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Notificação de Gesto Disparado ao Vivo */}
+            {activeGestureUI && (
+              <div className="absolute top-4 left-4 right-4 bg-emerald-500/95 text-slate-950 font-black text-center py-2 px-4 rounded-xl shadow-xl text-lg uppercase tracking-wider animate-pulse z-10">
+                🎉 Gesto Reconhecido: {activeGestureUI}
+              </div>
+            )}
+          </div>
+
+          {/* Configurações da Câmera e Detectores */}
+          <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-300">Dispositivo de Vídeo:</span>
+              <button
+                onClick={toggleCamera}
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
+                  cameraActive ? "bg-rose-600/80 hover:bg-rose-500 text-white" : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                }`}
+              >
+                {cameraActive ? "Desativar Câmera" : "Ativar Câmera"}
+              </button>
+            </div>
+
+            <select
+              value={selectedDevice}
+              onChange={(e) => setSelectedDevice(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none"
+              aria-label="Selecionar câmera"
+            >
+              {devices.map((d: MediaDeviceInfo) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Câmera ${d.deviceId.slice(0, 5)}`}
+                </option>
+              ))}
+            </select>
+
+            {/* Diagnóstico em Tempo Real (RNF-12) */}
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-700/60 text-center">
+              <div className="bg-slate-900/50 p-2 rounded-lg">
+                <span className="text-[10px] text-slate-400 block uppercase font-mono">FPS</span>
+                <span className="text-base font-bold text-sky-400 font-mono">{fps}</span>
+              </div>
+              <div className="bg-slate-900/50 p-2 rounded-lg">
+                <span className="text-[10px] text-slate-400 block uppercase font-mono">Latência</span>
+                <span className="text-base font-bold text-emerald-400 font-mono">{latencyMs} ms</span>
+              </div>
+              <div className="bg-slate-900/50 p-2 rounded-lg">
+                <span className="text-[10px] text-slate-400 block uppercase font-mono">Confiança</span>
+                <span className="text-base font-bold text-amber-400 font-mono">
+                  {currentPrediction ? `${(currentPrediction.confidence * 100).toFixed(0)}%` : "—"}
+                </span>
+              </div>
+            </div>
+
+            {/* Alternar Detectores e Landmarks (RF-CAM-05) */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-700/60 text-xs text-slate-300">
+              <span>Fontes Ativas:</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => toggleSource("face")}
+                  className={`px-2.5 py-1 rounded font-medium ${
+                    activeSources.includes("face") ? "bg-sky-600 text-white" : "bg-slate-700 text-slate-400"
+                  }`}
+                >
+                  Rosto
+                </button>
+                <button
+                  onClick={() => toggleSource("hand")}
+                  className={`px-2.5 py-1 rounded font-medium ${
+                    activeSources.includes("hand") ? "bg-sky-600 text-white" : "bg-slate-700 text-slate-400"
+                  }`}
+                >
+                  Mão
+                </button>
+                <button
+                  onClick={() => toggleSource("pose")}
+                  className={`px-2.5 py-1 rounded font-medium ${
+                    activeSources.includes("pose") ? "bg-sky-600 text-white" : "bg-slate-700 text-slate-400"
+                  }`}
+                >
+                  Corpo
+                </button>
+                <button
+                  onClick={() => setShowLandmarks((prev) => !prev)}
+                  className={`px-2.5 py-1 rounded font-medium ${
+                    showLandmarks ? "bg-emerald-700 text-white" : "bg-slate-700 text-slate-400"
+                  }`}
+                >
+                  Pontos
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Painel Direito: Treinamento, Gestos, Ações e Logs (7 colunas) */}
+        <section className="lg:col-span-7 flex flex-col gap-6" aria-labelledby="heading-gestures">
+          {/* Assistente da Classe Neutro (RF-TRN-06) */}
+          <div
+            className={`border rounded-2xl p-5 ${
+              hasNeutralSamples
+                ? "bg-slate-800/40 border-emerald-500/30"
+                : "bg-amber-950/40 border-amber-500/50"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-100">1. Calibração da Classe Neutro (Repouso)</h3>
+                  {hasNeutralSamples ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded-full font-medium">
+                      <CheckCircle className="w-3.5 h-3.5" /> Calibrado
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs text-amber-400 bg-amber-950 px-2 py-0.5 rounded-full font-medium">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Obrigatório
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-300 mt-1">
+                  Grave 40 amostras em estado natural (parado, falando, piscando normalmente). Essa classe é
+                  essencial para impedir disparos acidentais enquanto você usa o computador.
+                </p>
+              </div>
+
+              <button
+                onClick={() => startRecording("neutro")}
+                disabled={!cameraActive}
+                className="flex-shrink-0 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-xs px-4 py-2.5 rounded-xl transition shadow flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>{hasNeutralSamples ? "Regravar Neutro" : "Gravar Neutro"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Gestos Cadastrados e Ações Mapeadas */}
+          <div className="bg-slate-800/60 border border-slate-700 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 id="heading-gestures" className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-sky-400" />
+                <span>2. Seus Gestos Personalizados ({profile.gestures.length})</span>
+              </h3>
+
+              <button
+                onClick={handleTrain}
+                disabled={profile.samples.length < 2 || !cameraActive}
+                className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold text-xs px-4 py-2 rounded-xl transition shadow-lg flex items-center gap-2"
+              >
+                <Play className="w-4 h-4" />
+                <span>Treinar Modelo Agora</span>
+              </button>
+            </div>
+
+            {/* Relatório de Treino (RF-TRN-04) */}
+            {trainingReport && (
+              <div className="mb-4 p-3 bg-slate-900/80 rounded-xl border border-slate-700 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Acurácia Global do Modelo:</span>
+                  <span className="font-bold text-emerald-400 font-mono">
+                    {(trainingReport.overallAccuracy * 100).toFixed(1)}%
+                  </span>
+                </div>
+                {trainingReport.warnings.length > 0 && (
+                  <div className="mt-2 text-amber-300 bg-amber-950/40 p-2 rounded">
+                    {trainingReport.warnings.map((w: string, idx: number) => (
+                      <p key={idx}>⚠️ {w}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Lista de Gestos */}
+            <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+              {profile.gestures.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-6">
+                  Nenhum gesto cadastrado. Crie seu primeiro gesto abaixo (ex.: "piscar-esq", "sorriso", "joinha").
+                </p>
+              ) : (
+                profile.gestures.map((gesture: GestureDefinition) => {
+                  const gestureSamplesCount = profile.samples.filter(
+                    (s: GestureSample) => s.gestureName === gesture.name
+                  ).length;
+                  const action = profile.actions.find((a: ActionDefinition) => a.id === gesture.actionId);
+
+                  return (
+                    <div
+                      key={gesture.id}
+                      className="bg-slate-900/60 border border-slate-700/80 rounded-xl p-3 flex items-center justify-between gap-3"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-slate-100">{gesture.name}</span>
+                          <span className="text-[11px] text-slate-400 font-mono bg-slate-800 px-2 py-0.5 rounded">
+                            {gestureSamplesCount} amostras
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-400 mt-1 flex items-center gap-3">
+                          <span>
+                            Ação:{" "}
+                            <strong className="text-slate-200">
+                              {action?.type === "speech" && `Falar: "${action.payload.text}"`}
+                              {action?.type === "key" && `Tecla: [${action.payload.key}]`}
+                              {action?.type === "webhook" && `URL: ${action.payload.url}`}
+                            </strong>
+                          </span>
+                          <span>Hold: {gesture.holdMs}ms</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => startRecording(gesture.name)}
+                          disabled={!cameraActive}
+                          className="text-xs bg-sky-600/80 hover:bg-sky-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition"
+                        >
+                          Gravar +40
+                        </button>
+                        <button
+                          onClick={() => handleDeleteGesture(gesture.name)}
+                          className="text-xs text-slate-400 hover:text-rose-400 p-1.5 transition"
+                          title="Excluir gesto"
+                          aria-label={`Excluir gesto ${gesture.name}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Formulário para Adicionar Novo Gesto */}
+            <form onSubmit={handleAddGesture} className="mt-4 pt-4 border-t border-slate-700 flex flex-col gap-3">
+              <span className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                Adicionar Novo Gesto
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  placeholder="Nome do gesto (ex: piscar-esq)"
+                  value={newGestureName}
+                  onChange={(e) => setNewGestureName(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none"
+                  required
+                />
+                <select
+                  value={newGestureActionType}
+                  onChange={(e) => setNewGestureActionType(e.target.value as "speech" | "key" | "webhook")}
+                  className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none"
+                >
+                  <option value="speech">Falar frase (Voz sintetizada)</option>
+                  <option value="key">Pressionar tecla (ex: ArrowRight)</option>
+                  <option value="webhook">Disparar Webhook HTTP</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder={
+                    newGestureActionType === "speech"
+                      ? "Frase a falar..."
+                      : newGestureActionType === "key"
+                      ? "Tecla (ArrowRight, Space)"
+                      : "https://minha-api.com"
+                  }
+                  value={newGestureActionValue}
+                  onChange={(e) => setNewGestureActionValue(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="self-end bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs px-4 py-2 rounded-lg transition"
+              >
+                + Criar Gesto
+              </button>
+            </form>
+          </div>
+
+          {/* Histórico / Log de Ações Disparadas (RF-ACT-06) */}
+          <div className="bg-slate-800/60 border border-slate-700 rounded-2xl p-5">
+            <h3 className="text-sm font-bold text-slate-200 mb-3 flex items-center justify-between">
+              <span>Registro de Disparos em Tempo Real</span>
+              <span className="text-[11px] text-slate-400 font-normal">Últimas 20 ações</span>
+            </h3>
+
+            <div className="space-y-1.5 max-h-36 overflow-y-auto font-mono text-xs text-slate-300">
+              {actionLogs.length === 0 ? (
+                <p className="text-slate-500 text-center py-4">Nenhuma ação disparada ainda.</p>
+              ) : (
+                actionLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="flex items-center justify-between bg-slate-900/40 px-3 py-1.5 rounded border border-slate-800"
+                  >
+                    <span className="text-emerald-400">[{log.time}]</span>
+                    <span className="font-semibold text-slate-200">{log.gesture}</span>
+                    <span className="text-sky-300">{log.actionType}</span>
+                    <span className="text-xs text-slate-400">{log.status}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Gerenciamento de Perfil: Exportar / Importar / Excluir (RF-PRF-01/02/04) */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportProfile}
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg border border-slate-700 transition"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Exportar .gestolivre.json</span>
+              </button>
+
+              <label className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg border border-slate-700 cursor-pointer transition">
+                <Upload className="w-3.5 h-3.5" />
+                <span>Importar Perfil</span>
+                <input type="file" accept=".json" onChange={handleImportProfile} className="hidden" />
+              </label>
+            </div>
+
+            <button
+              onClick={handleWipeAll}
+              className="flex items-center gap-1.5 text-rose-400 hover:text-rose-300 px-3 py-2 rounded-lg hover:bg-rose-950/40 transition"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Apagar Todos os Dados</span>
+            </button>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
