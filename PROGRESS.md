@@ -45,6 +45,8 @@ flowchart LR
 | **RF-PRF-01** | Perfis | Persistência local em IndexedDB | ✅ Concluído | `packages/core/src/profile/profile-manager.ts` | `packages/core/tests/profile.test.ts` |
 | **RF-PRF-02** | Perfis | Exportar/importar perfil `.gestolivre.json` | ✅ Concluído | `packages/core/src/profile/profile-manager.ts` | `packages/core/tests/profile.test.ts` |
 | **RF-PRF-04** | Perfis | Exclusão de todos os dados locais com confirmação (LGPD) | ✅ Concluído | `packages/core/src/profile/profile-manager.ts` | `packages/core/tests/profile.test.ts` |
+| **RF-PRF-05** | Perfis | Modelos clínicos prontos (Presets para ELA, Paralisia, etc.) | ✅ Concluído | `packages/core/src/presets/index.ts` & UI | `packages/core/tests/presets.test.ts` |
+| **RF-CAL-01** | Calibração | Análise de repouso e ajuste adaptativo de tremores/deadzone | ✅ Concluído | `packages/core/src/accessibility/tremor-analyzer.ts` | `packages/core/tests/tremor-analyzer.test.ts` |
 | **RF-API-01** | Core API | Pacote com tipos TypeScript estritos, ESM e CJS | ✅ Concluído | `packages/core/package.json` | `packages/core/tests/api.test.ts` |
 | **RNF-01/02** | Desempenho | Latência $\le 100$ms e FPS $\ge 24$ | ✅ Concluído | Painel em tempo real | `apps/studio` |
 | **RNF-03** | Desempenho | Treino em $\le 5$s com k-NN | ✅ Concluído | `packages/core/src/classifiers/knn.ts` | 19 ms no teste |
@@ -123,15 +125,24 @@ flowchart LR
   - Monitor de status do Bridge na barra superior com badge interativo (`Bridge SO Conectado` / `Offline`).
   - Opção no formulário de gestos para mapear qualquer movimento para teclas nativas do SO.
 
+### Melhorias de Alto Valor: Presets Clínicos & Calibração Adaptativa de Tremores
+- **Catálogo de Presets Clínicos (RF-PRF-05)**:
+  - Modelos pré-configurados em `packages/core/src/presets/index.ts` para ELA, Paralisia Cerebral, Tetraplegia e Apresentações Desktop.
+  - Componente modal `PresetPickerModal` em `@gestolivre/ui` integrado no Studio, permitindo carga em 1 clique com WCAG 2.2 AA.
+- **Calibrador Adaptativo de Tremores (RF-CAL-01)**:
+  - `TremorAnalyzer` em `packages/core/src/accessibility/tremor-analyzer.ts`: coleta micro-oscilações em repouso por 60 frames (~2.5s), calcula variância, desvio padrão e amplitude máxima de espasmos.
+  - Diagnóstico automático ("Baixo/Estável", "Moderado", "Elevado/Espasmos") e sugestão de parâmetros ideais de `deadzone`, sensibilidade, sustentação (`holdMs`) e `cooldown`.
+  - Componente modal `TremorCalibratorModal` em `@gestolivre/ui` com alvo animado e anel SVG de progresso radial integrado no Studio.
+
 ---
 
 ## 🧪 Resumo da Suíte de Testes e Qualidade
 
-- **Total de Testes Unitários e de Integração**: **36 testes automatizados (100% de aprovação)**
-  - `@gestolivre/core`: 22 testes
+- **Total de Testes Unitários e de Integração**: **43 testes automatizados (100% de aprovação)**
+  - `@gestolivre/core`: 27 testes
   - `@gestolivre/actions`: 3 testes
   - `@gestolivre/bridge`: 4 testes
-  - `@gestolivre/ui`: 5 testes (incluindo axe-core WCAG 2.2 AA)
+  - `@gestolivre/ui`: 7 testes (incluindo 6 testes axe-core WCAG 2.2 AA)
   - `apps/studio`: 2 testes
-- **Auditoria SDD (`pnpm run verify:specs`)**: **22 requisitos com cobertura formal 1:1 verificada**.
+- **Auditoria SDD (`pnpm run verify:specs`)**: **24 requisitos com cobertura formal 1:1 verificada**.
 - **Tipagem TypeScript 5**: Modo estrito (`strict: true`, `noImplicitAny: true`, `noUnusedLocals: true`) com **0 erros**.

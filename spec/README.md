@@ -27,4 +27,6 @@ Este diretório contém as especificações executáveis e critérios de aceite 
 | **RF-PRF-01** | Armazenamento de perfis em IndexedDB | [`PRF-01-export-import.spec.md`](./PRF-01-export-import.spec.md) | `packages/core/tests/profile.test.ts` | ✅ Implementado |
 | **RF-PRF-02** | Exportar/importar perfil `.gestolivre.json` | [`PRF-01-export-import.spec.md`](./PRF-01-export-import.spec.md) | `packages/core/tests/profile.test.ts` | ✅ Implementado |
 | **RF-PRF-04** | Exclusão completa de dados com confirmação (LGPD) | [`PRF-01-export-import.spec.md`](./PRF-01-export-import.spec.md) | `packages/core/tests/profile.test.ts` | ✅ Implementado |
+| **RF-PRF-05** | Biblioteca de perfis e presets clínicos de acessibilidade | [`ACC-01-presets-clinicos.spec.md`](./ACC-01-presets-clinicos.spec.md) | `packages/core/tests/presets.test.ts` | ✅ Implementado |
+| **RF-CAL-01** | Calibração adaptativa de tremores e amplitude motora | [`ACC-02-calibrador-tremores.spec.md`](./ACC-02-calibrador-tremores.spec.md) | `packages/core/tests/tremor-analyzer.test.ts` | ✅ Implementado |
 | **RF-API-01** | Uso 100% headless apenas via código TypeScript | [`API-01-headless.spec.md`](./API-01-headless.spec.md) | `packages/core/tests/api.test.ts` | ✅ Implementado |

@@ -7,6 +7,8 @@ import { EmergencyButton } from "../src/EmergencyButton";
 import { LiveMetricsBadge } from "../src/LiveMetricsBadge";
 import { CountdownOverlay } from "../src/CountdownOverlay";
 import { SampleGalleryModal } from "../src/SampleGalleryModal";
+import { PresetPickerModal } from "../src/PresetPickerModal";
+import { TremorCalibratorModal } from "../src/TremorCalibratorModal";
 
 describe("Auditoria de Acessibilidade WCAG 2.2 AA (CA-RNF-04)", () => {
   const runAxeOnComponent = async (jsx: React.ReactElement): Promise<axe.AxeResults> => {
@@ -69,6 +71,38 @@ describe("Auditoria de Acessibilidade WCAG 2.2 AA (CA-RNF-04)", () => {
         onClose={() => {}}
         onDeleteSample={() => {}}
         onDeleteAllSamples={() => {}}
+      />
+    );
+
+    const severeViolations = results.violations.filter(
+      (v) => v.impact === "serious" || v.impact === "critical"
+    );
+
+    expect(severeViolations).toHaveLength(0);
+  });
+
+  it("PresetPickerModal atende às diretrizes de diálogo modal acessível", async () => {
+    const results = await runAxeOnComponent(
+      <PresetPickerModal isOpen={true} onClose={() => {}} onSelectPreset={() => {}} />
+    );
+
+    const severeViolations = results.violations.filter(
+      (v) => v.impact === "serious" || v.impact === "critical"
+    );
+
+    expect(severeViolations).toHaveLength(0);
+  });
+
+  it("TremorCalibratorModal atende às diretrizes de diálogo modal acessível", async () => {
+    const results = await runAxeOnComponent(
+      <TremorCalibratorModal
+        isOpen={true}
+        onClose={() => {}}
+        isCollecting={false}
+        sampleCount={0}
+        result={null}
+        onStartCalibration={() => {}}
+        onApplySettings={() => {}}
       />
     );
 

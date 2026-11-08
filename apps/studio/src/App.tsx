@@ -12,6 +12,8 @@ import {
   CheckCircle,
   AlertTriangle,
   Eye,
+  Sparkles,
+  Activity,
 } from "lucide-react";
 import {
   CameraManager,
@@ -28,6 +30,9 @@ import {
   TrainingEvaluationReport,
   ClassificationPrediction,
   HeadCursor,
+  TremorAnalyzer,
+  TremorAnalysisResult,
+  AccessibilityPreset,
 } from "@gestolivre/core";
 import { ActionDispatcher } from "@gestolivre/actions";
 import {
@@ -36,6 +41,8 @@ import {
   LiveMetricsBadge,
   SampleGalleryModal,
   HeadCursorOverlay,
+  PresetPickerModal,
+  TremorCalibratorModal,
 } from "@gestolivre/ui";
 
 export function App() {
@@ -127,6 +134,15 @@ export function App() {
     profileManagerRef.current.createDefaultProfile("Meu Perfil de Acessibilidade")
   );
   const [trainingReport, setTrainingReport] = useState<TrainingEvaluationReport | null>(null);
+
+  // Presets Clínicos & Calibração de Tremores
+  const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
+  const [isTremorModalOpen, setIsTremorModalOpen] = useState(false);
+  const [isTremorCollecting, setIsTremorCollecting] = useState(false);
+  const [tremorSampleCount, setTremorSampleCount] = useState(0);
+  const [tremorResult, setTremorResult] = useState<TremorAnalysisResult | null>(null);
+  const tremorAnalyzerRef = useRef<TremorAnalyzer>(new TremorAnalyzer());
+  const isTremorCollectingRef = useRef(false);
 
   // Gravação de Amostras
   const [recordingGesture, setRecordingGesture] = useState<string | null>(null);
@@ -295,6 +311,21 @@ export function App() {
           headCursorRef.current.update(nose.x, nose.y);
         }
 
+        // Calibração de Tremores em Repouso (RF-CAL-01)
+        if (isTremorCollectingRef.current && frame.face?.landmarks?.[1]) {
+          const nose = frame.face.landmarks[1];
+          tremorAnalyzerRef.current.addSample(nose);
+          const currentCount = tremorAnalyzerRef.current.getSampleCount();
+          setTremorSampleCount(currentCount);
+
+          if (currentCount >= 60) {
+            isTremorCollectingRef.current = false;
+            setIsTremorCollecting(false);
+            const res = tremorAnalyzerRef.current.stop();
+            setTremorResult(res);
+          }
+        }
+
         // Extrai vetor de características normalizado
         const vector = LandmarkNormalizer.extractVector(frame, activeSources, { mirror: true });
 
@@ -436,6 +467,69 @@ export function App() {
       const error = err as Error;
       alert(`Erro no treino: ${error.message}`);
     }
+  };
+
+  // Carregar Modelo Pronto (Preset Clínico RF-PRF-05)
+  const handleSelectPreset = async (preset: AccessibilityPreset) => {
+    setProfile(preset.profile);
+    engineRef.current.registerGestureConfigs(preset.profile.gestures);
+    await profileManagerRef.current.saveProfile(preset.profile);
+    if (preset.recommendedSettings.dwellTimeMs && headCursorRef.current) {
+      headCursorRef.current.setDwellTime(preset.recommendedSettings.dwellTimeMs);
+    }
+    if (preset.recommendedSettings.sensitivity && headCursorRef.current) {
+      headCursorRef.current.setSensitivity(preset.recommendedSettings.sensitivity);
+    }
+    if (preset.recommendedSettings.deadzone && headCursorRef.current) {
+      headCursorRef.current.setDeadzone(preset.recommendedSettings.deadzone);
+    }
+    alert(
+      `Modelo "${preset.title}" carregado com sucesso!\nCadastre ou grave as amostras dos gestos para calibrar à sua anatomia.`
+    );
+  };
+
+  // Calibrar Tremores Automaticamente (RF-CAL-01)
+  const handleStartTremorCalibration = () => {
+    if (!cameraActive) {
+      alert("Por favor, ative a câmera antes de iniciar a calibração de tremores.");
+      return;
+    }
+    setTremorResult(null);
+    setTremorSampleCount(0);
+    tremorAnalyzerRef.current.start();
+    isTremorCollectingRef.current = true;
+    setIsTremorCollecting(true);
+  };
+
+  const handleApplyTremorSettings = (settings: {
+    deadzone: number;
+    sensitivity: number;
+    holdMs: number;
+    cooldownMs: number;
+  }) => {
+    if (headCursorRef.current) {
+      headCursorRef.current.setDeadzone(settings.deadzone);
+      headCursorRef.current.setSensitivity(settings.sensitivity);
+    }
+    // Atualiza parâmetros de gestos no perfil
+    setProfile((prev: GestureProfile) => ({
+      ...prev,
+      gestures: prev.gestures.map((g: GestureDefinition) => ({
+        ...g,
+        holdMs: settings.holdMs,
+        cooldownMs: settings.cooldownMs,
+      })),
+    }));
+    engineRef.current.registerGestureConfigs(
+      profile.gestures.map((g: GestureDefinition) => ({
+        ...g,
+        holdMs: settings.holdMs,
+        cooldownMs: settings.cooldownMs,
+      }))
+    );
+    alert(
+      `Calibração adaptativa aplicada!\n• Deadzone: ${settings.deadzone}\n• Sensibilidade: ${settings.sensitivity}x\n• Sustentação: ${settings.holdMs} ms`
+    );
   };
 
   // Adicionar Gesto Personalizado
@@ -814,20 +908,44 @@ export function App() {
 
           {/* Gestos Cadastrados e Ações Mapeadas */}
           <div className="bg-slate-800/60 border border-slate-700 rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <h3 id="heading-gestures" className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Sliders className="w-4 h-4 text-sky-400" />
                 <span>2. Seus Gestos Personalizados ({profile.gestures.length})</span>
               </h3>
 
-              <button
-                onClick={handleTrain}
-                disabled={profile.samples.length < 2 || !cameraActive}
-                className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold text-xs px-4 py-2 rounded-xl transition shadow-lg flex items-center gap-2"
-              >
-                <Play className="w-4 h-4" />
-                <span>Treinar Modelo Agora</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setIsPresetModalOpen(true)}
+                  className="bg-indigo-600/80 hover:bg-indigo-500 text-white font-medium text-xs px-3 py-2 rounded-xl transition shadow flex items-center gap-1.5"
+                  title="Carregar configurações prontas para ELA, Paralisia Cerebral, Tetraplegia e Apresentações"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Modelos Prontos</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsTremorModalOpen(true);
+                    setTremorResult(null);
+                  }}
+                  disabled={!cameraActive}
+                  className="bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 border border-slate-700 font-medium text-xs px-3 py-2 rounded-xl transition shadow flex items-center gap-1.5"
+                  title="Ajustar automaticamente deadzone e sensibilidade com base no tremor em repouso"
+                >
+                  <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Calibrar Tremores</span>
+                </button>
+
+                <button
+                  onClick={handleTrain}
+                  disabled={profile.samples.length < 2 || !cameraActive}
+                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold text-xs px-4 py-2 rounded-xl transition shadow-lg flex items-center gap-2"
+                >
+                  <Play className="w-4 h-4" />
+                  <span>Treinar Modelo Agora</span>
+                </button>
+              </div>
             </div>
 
             {/* Relatório de Treino (RF-TRN-04) */}
@@ -1040,6 +1158,29 @@ export function App() {
         y={cursorPos.y}
         progress={cursorPos.progress}
         active={headCursorEnabled && cameraActive}
+      />
+
+      {/* Catálogo de Presets Clínicos (RF-PRF-05) */}
+      <PresetPickerModal
+        isOpen={isPresetModalOpen}
+        onClose={() => setIsPresetModalOpen(false)}
+        onSelectPreset={handleSelectPreset}
+        currentProfileId={profile.id}
+      />
+
+      {/* Assistente de Calibração de Tremores (RF-CAL-01) */}
+      <TremorCalibratorModal
+        isOpen={isTremorModalOpen}
+        onClose={() => {
+          setIsTremorModalOpen(false);
+          isTremorCollectingRef.current = false;
+          setIsTremorCollecting(false);
+        }}
+        isCollecting={isTremorCollecting}
+        sampleCount={tremorSampleCount}
+        result={tremorResult}
+        onStartCalibration={handleStartTremorCalibration}
+        onApplySettings={handleApplyTremorSettings}
       />
     </div>
   );

@@ -65,6 +65,18 @@ export class HeadCursor {
     this.calibrated = true;
   }
 
+  public setDeadzone(deadzone: number): void {
+    this.deadzone = deadzone;
+  }
+
+  public setSensitivity(sensitivity: number): void {
+    this.sensitivity = sensitivity;
+  }
+
+  public setDwellTime(dwellTimeMs: number): void {
+    this.dwellTimeMs = dwellTimeMs;
+  }
+
   /**
    * Processa o ponto central da cabeça/nariz normalizado (x: 0..1, y: 0..1)
    */

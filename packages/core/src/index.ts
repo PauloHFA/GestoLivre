@@ -22,6 +22,8 @@ export * from "./engine/decision-engine";
 export * from "./profile/profile-manager";
 export * from "./accessibility/scanning-engine";
 export * from "./accessibility/head-cursor";
+export * from "./accessibility/tremor-analyzer";
+export * from "./presets/index";
 
 export interface GestoLivreOptions {
   sources?: VisionSource[];
