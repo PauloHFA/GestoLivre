@@ -3,7 +3,6 @@ import {
   Camera,
   CameraOff,
   ShieldCheck,
-  AlertOctagon,
   Play,
   RotateCcw,
   Download,
@@ -12,6 +11,7 @@ import {
   Sliders,
   CheckCircle,
   AlertTriangle,
+  Eye,
 } from "lucide-react";
 import {
   CameraManager,
@@ -29,6 +29,12 @@ import {
   ClassificationPrediction,
 } from "@gestolivre/core";
 import { ActionDispatcher } from "@gestolivre/actions";
+import {
+  EmergencyButton,
+  CountdownOverlay,
+  LiveMetricsBadge,
+  SampleGalleryModal,
+} from "@gestolivre/ui";
 
 export function App() {
   // Estado de Câmera e Visão
@@ -59,6 +65,7 @@ export function App() {
   const [recordingGesture, setRecordingGesture] = useState<string | null>(null);
   const [recordingCountdown, setRecordingCountdown] = useState<number | null>(null);
   const [sampleCount, setSampleCount] = useState<number>(0);
+  const [reviewingGesture, setReviewingGesture] = useState<string | null>(null);
   const targetSamples = 40;
 
   // Reconhecimento ao Vivo e Anti-Disparo
@@ -326,6 +333,21 @@ export function App() {
     }, 1000);
   };
 
+  // Excluir Amostra Individual (RF-TRN-03)
+  const handleDeleteSample = (sampleId: string) => {
+    setProfile((prev: GestureProfile) => ({
+      ...prev,
+      samples: prev.samples.filter((s: GestureSample) => s.id !== sampleId),
+    }));
+  };
+
+  const handleDeleteAllSamples = (gestureName: string) => {
+    setProfile((prev: GestureProfile) => ({
+      ...prev,
+      samples: prev.samples.filter((s: GestureSample) => s.gestureName !== gestureName),
+    }));
+  };
+
   // Treinar Modelo
   const handleTrain = async () => {
     try {
@@ -471,19 +493,7 @@ export function App() {
 
         {/* Controles de Emergência e Indicadores */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={toggleEmergencyPause}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition shadow-lg ${
-              isPaused
-                ? "bg-amber-600 hover:bg-amber-500 text-white animate-pulse"
-                : "bg-rose-600 hover:bg-rose-500 text-white"
-            }`}
-            title="Atalho de teclado: Escape"
-            aria-label={isPaused ? "Retomar reconhecimento de gestos" : "Pausa de emergência no reconhecimento"}
-          >
-            <AlertOctagon className="w-5 h-5" />
-            <span>{isPaused ? "RECONHECIMENTO PAUSADO" : "PAUSA DE EMERGÊNCIA (Esc)"}</span>
-          </button>
+          <EmergencyButton isPaused={isPaused} onToggle={toggleEmergencyPause} />
 
           {cameraActive && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 rounded-full text-xs font-medium">
@@ -549,31 +559,12 @@ export function App() {
 
             {/* Overlay de Gravação em Andamento */}
             {recordingGesture && (
-              <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-20">
-                {recordingCountdown !== null ? (
-                  <div className="text-center">
-                    <p className="text-slate-300 text-lg mb-2">Prepare-se para o gesto:</p>
-                    <p className="text-emerald-400 font-bold text-2xl mb-4">"{recordingGesture}"</p>
-                    <div className="text-7xl font-extrabold text-white animate-bounce">{recordingCountdown}</div>
-                  </div>
-                ) : (
-                  <div className="w-full max-w-xs text-center">
-                    <p className="text-amber-400 font-semibold mb-2 animate-pulse">
-                      Gravando "{recordingGesture}"...
-                    </p>
-                    <p className="text-xs text-slate-300 mb-4">Mova levemente a cabeça ou mão para gerar variação</p>
-                    <div className="w-full bg-slate-700 rounded-full h-4 overflow-hidden border border-slate-600">
-                      <div
-                        className="bg-emerald-500 h-full transition-all duration-75"
-                        style={{ width: `${(sampleCount / targetSamples) * 100}%` }}
-                      />
-                    </div>
-                    <p className="text-sm text-slate-300 mt-2 font-mono">
-                      {sampleCount} / {targetSamples} amostras
-                    </p>
-                  </div>
-                )}
-              </div>
+              <CountdownOverlay
+                gestureName={recordingGesture}
+                countdown={recordingCountdown}
+                sampleCount={sampleCount}
+                targetSamples={targetSamples}
+              />
             )}
 
             {/* Notificação de Gesto Disparado ao Vivo */}
@@ -612,22 +603,12 @@ export function App() {
             </select>
 
             {/* Diagnóstico em Tempo Real (RNF-12) */}
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-700/60 text-center">
-              <div className="bg-slate-900/50 p-2 rounded-lg">
-                <span className="text-[10px] text-slate-400 block uppercase font-mono">FPS</span>
-                <span className="text-base font-bold text-sky-400 font-mono">{fps}</span>
-              </div>
-              <div className="bg-slate-900/50 p-2 rounded-lg">
-                <span className="text-[10px] text-slate-400 block uppercase font-mono">Latência</span>
-                <span className="text-base font-bold text-emerald-400 font-mono">{latencyMs} ms</span>
-              </div>
-              <div className="bg-slate-900/50 p-2 rounded-lg">
-                <span className="text-[10px] text-slate-400 block uppercase font-mono">Confiança</span>
-                <span className="text-base font-bold text-amber-400 font-mono">
-                  {currentPrediction ? `${(currentPrediction.confidence * 100).toFixed(0)}%` : "—"}
-                </span>
-              </div>
-            </div>
+            <LiveMetricsBadge
+              fps={fps}
+              latencyMs={latencyMs}
+              confidence={currentPrediction?.confidence}
+              className="pt-2 border-t border-slate-700/60"
+            />
 
             {/* Alternar Detectores e Landmarks (RF-CAM-05) */}
             <div className="flex items-center justify-between pt-2 border-t border-slate-700/60 text-xs text-slate-300">
@@ -700,14 +681,27 @@ export function App() {
                 </p>
               </div>
 
-              <button
-                onClick={() => startRecording("neutro")}
-                disabled={!cameraActive}
-                className="flex-shrink-0 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-xs px-4 py-2.5 rounded-xl transition shadow flex items-center gap-2"
-              >
-                <RotateCcw className="w-4 h-4" />
-                <span>{hasNeutralSamples ? "Regravar Neutro" : "Gravar Neutro"}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {hasNeutralSamples && (
+                  <button
+                    onClick={() => setReviewingGesture("neutro")}
+                    className="flex-shrink-0 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5"
+                    title="Inspecionar e excluir amostras de repouso"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Revisar ({profile.samples.filter((s: GestureSample) => s.gestureName === "neutro").length})</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => startRecording("neutro")}
+                  disabled={!cameraActive}
+                  className="flex-shrink-0 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-xs px-4 py-2.5 rounded-xl transition shadow flex items-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>{hasNeutralSamples ? "Gravar +40" : "Gravar Neutro"}</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -787,6 +781,16 @@ export function App() {
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {gestureSamplesCount > 0 && (
+                          <button
+                            onClick={() => setReviewingGesture(gesture.name)}
+                            className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1"
+                            title="Revisar amostras gravadas deste gesto"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Ver ({gestureSamplesCount})</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => startRecording(gesture.name)}
                           disabled={!cameraActive}
@@ -911,6 +915,17 @@ export function App() {
           </div>
         </section>
       </main>
+      {/* Modal de Revisão de Amostras (RF-TRN-03) */}
+      {reviewingGesture && (
+        <SampleGalleryModal
+          gestureName={reviewingGesture}
+          samples={profile.samples.filter((s: GestureSample) => s.gestureName === reviewingGesture)}
+          isOpen={true}
+          onClose={() => setReviewingGesture(null)}
+          onDeleteSample={handleDeleteSample}
+          onDeleteAllSamples={handleDeleteAllSamples}
+        />
+      )}
     </div>
   );
 }

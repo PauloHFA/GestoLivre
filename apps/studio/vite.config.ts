@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       "@gestolivre/core": path.resolve(__dirname, "../../packages/core/src"),
       "@gestolivre/actions": path.resolve(__dirname, "../../packages/actions/src"),
+      "@gestolivre/ui": path.resolve(__dirname, "../../packages/ui/src"),
     },
   },
   server: {

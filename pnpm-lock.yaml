@@ -181,6 +181,9 @@ importers:
       '@gestolivre/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@gestolivre/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       lucide-react:
         specifier: ^0.475.0
         version: 0.475.0(react@18.3.1)
@@ -240,6 +243,37 @@ importers:
         specifier: ^8.0.2
         version: 8.0.4
     devDependencies:
+      tsup:
+        specifier: ^8.3.6
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.32)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.7(jiti@1.21.7)
+
+  packages/ui:
+    dependencies:
+      '@gestolivre/core':
+        specifier: workspace:*
+        version: link:../core
+      lucide-react:
+        specifier: ^0.475.0
+        version: 0.475.0(react@18.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.18
+        version: 18.3.31
+      '@types/react-dom':
+        specifier: ^18.3.5
+        version: 18.3.7(@types/react@18.3.31)
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
       tsup:
         specifier: ^8.3.6
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.32)(typescript@5.9.3)

@@ -5,7 +5,8 @@
     "outDir": "./dist",
     "paths": {
       "@gestolivre/core": ["../../packages/core/src"],
-      "@gestolivre/actions": ["../../packages/actions/src"]
+      "@gestolivre/actions": ["../../packages/actions/src"],
+      "@gestolivre/ui": ["../../packages/ui/src"]
     }
   },
   "include": ["src/**/*"],
