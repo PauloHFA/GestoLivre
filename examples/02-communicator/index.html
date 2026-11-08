@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GestoLivre — Prancha de Comunicação Acessível por Gestos (CAA)</title>
+    <style>
+      :root {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #090d16;
+        color: #f8fafc;
+      }
+      body {
+        margin: 0;
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        box-sizing: border-box;
+      }
+      header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+        color: #38bdf8;
+        font-size: 2.2rem;
+      }
+      p.subtitle {
+        color: #94a3b8;
+        font-size: 1.1rem;
+        margin: 0;
+      }
+      .instructions {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 1rem;
+        padding: 1rem 1.5rem;
+        margin-bottom: 2rem;
+        max-width: 800px;
+        width: 100%;
+        display: flex;
+        justify-content: space-around;
+        gap: 1rem;
+        font-size: 0.95rem;
+      }
+      .instructions span strong {
+        color: #34d399;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.5rem;
+        max-width: 1000px;
+        width: 100%;
+      }
+      .card {
+        background: #1e293b;
+        border: 3px solid #334155;
+        border-radius: 1.25rem;
+        padding: 2rem 1.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+      }
+      .card .icon {
+        font-size: 3.5rem;
+        margin-bottom: 1rem;
+      }
+      .card .text {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #f1f5f9;
+      }
+      .card.active {
+        border-color: #38bdf8;
+        background: #0369a1;
+        box-shadow: 0 0 25px rgba(56, 189, 248, 0.4);
+        transform: scale(1.04);
+      }
+      .card.speaking {
+        border-color: #34d399;
+        background: #065f46;
+        animation: pulse 0.5s infinite alternate;
+      }
+      @keyframes pulse {
+        from { transform: scale(1.04); }
+        to { transform: scale(1.08); }
+      }
+      .last-spoken {
+        margin-top: 2rem;
+        background: #0f172a;
+        border: 1px solid #1e293b;
+        padding: 1rem 2rem;
+        border-radius: 2rem;
+        font-size: 1.2rem;
+        color: #38bdf8;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Prancha de Comunicação Vocal</h1>
+      <p class="subtitle">Controle por gestos faciais calibrados no GestoLivre Studio</p>
+    </header>
+
+    <div class="instructions">
+      <span><strong>Avançar:</strong> Tecla Espaço / Sobrancelha</span>
+      <span><strong>Falar:</strong> Tecla Enter / Piscar ou Sorrir</span>
+      <span><strong>Voz:</strong> Síntese de Voz (Web Speech API)</span>
+    </div>
+
+    <div class="grid" id="card-grid"></div>
+
+    <div class="last-spoken" id="last-spoken">Última fala: Nenhuma ainda</div>
+
+    <script>
+      const cards = [
+        { id: "agua", icon: "💧", text: "Quero água", phrase: "Por favor, quero água." },
+        { id: "sim", icon: "✅", text: "Sim", phrase: "Sim." },
+        { id: "nao", icon: "❌", text: "Não", phrase: "Não." },
+        { id: "dor", icon: "🤕", text: "Sinto dor", phrase: "Estou sentindo dor, preciso de auxílio." },
+        { id: "ajuda", icon: "🆘", text: "Preciso de ajuda", phrase: "Por favor, venha me ajudar." },
+        { id: "obrigado", icon: "🙏", text: "Muito obrigado", phrase: "Muito obrigado pela sua atenção." },
+        { id: "frio", icon: "❄️", text: "Estou com frio", phrase: "Estou com frio, pode me cobrir?" },
+        { id: "cansei", icon: "😴", text: "Estou cansado", phrase: "Estou cansado e quero descansar." },
+      ];
+
+      let selectedIndex = 0;
+      const grid = document.getElementById("card-grid");
+      const lastSpoken = document.getElementById("last-spoken");
+
+      function renderGrid() {
+        grid.innerHTML = "";
+        cards.forEach((card, idx) => {
+          const div = document.createElement("div");
+          div.className = `card ${idx === selectedIndex ? "active" : ""}`;
+          div.id = `card-${card.id}`;
+          div.innerHTML = `
+            <div class="icon">${card.icon}</div>
+            <div class="text">${card.text}</div>
+          `;
+          div.onclick = () => {
+            selectedIndex = idx;
+            renderGrid();
+            speakCurrent();
+          };
+          grid.appendChild(div);
+        });
+      }
+
+      function nextCard() {
+        selectedIndex = (selectedIndex + 1) % cards.length;
+        renderGrid();
+      }
+
+      function prevCard() {
+        selectedIndex = (selectedIndex - 1 + cards.length) % cards.length;
+        renderGrid();
+      }
+
+      function speakCurrent() {
+        const card = cards[selectedIndex];
+        if (!card) return;
+
+        lastSpoken.textContent = `Última fala: "${card.phrase}"`;
+
+        const activeEl = document.getElementById(`card-${card.id}`);
+        if (activeEl) {
+          activeEl.classList.add("speaking");
+          setTimeout(() => activeEl.classList.remove("speaking"), 1000);
+        }
+
+        if ("speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(card.phrase);
+          utterance.lang = "pt-BR";
+          window.speechSynthesis.speak(utterance);
+        }
+      }
+
+      // Atalhos de teclado compatíveis com as ações emitidas pelo GestoLivre Studio
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight" || e.key === " " || e.key === "Tab") {
+          e.preventDefault();
+          nextCard();
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          prevCard();
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          speakCurrent();
+        }
+      });
+
+      renderGrid();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GestoLivre — Jogo do Dinossauro por Gestos Faciais</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0f172a;
+        color: #f8fafc;
+        font-family: monospace, system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+        color: #38bdf8;
+      }
+      p {
+        color: #94a3b8;
+        margin-bottom: 1.5rem;
+      }
+      canvas {
+        background: #1e293b;
+        border: 3px solid #334155;
+        border-radius: 1rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      }
+      .controls {
+        margin-top: 1rem;
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+      }
+      button {
+        background: #0284c7;
+        color: white;
+        border: none;
+        padding: 0.6rem 1.2rem;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        font-weight: bold;
+        font-family: inherit;
+      }
+      button:hover {
+        background: #0369a1;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🦖 Dino Jump — Controle por Gestos</h1>
+    <p>Abra a boca (ou use a barra de Espaço) para fazer o dinossauro pular!</p>
+
+    <canvas id="game" width="800" height="240"></canvas>
+
+    <div class="controls">
+      <span id="score-text">Pontuação: 0</span>
+      <button onclick="restartGame()">Reiniciar Jogo</button>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+
+      let dino = { x: 50, y: 170, vy: 0, w: 34, h: 44, jumping: false };
+      let obstacles = [];
+      let score = 0;
+      let gameOver = false;
+      let frameCount = 0;
+
+      function jump() {
+        if (!dino.jumping && !gameOver) {
+          dino.vy = -12;
+          dino.jumping = true;
+        } else if (gameOver) {
+          restartGame();
+        }
+      }
+
+      function restartGame() {
+        dino.y = 170;
+        dino.vy = 0;
+        dino.jumping = false;
+        obstacles = [];
+        score = 0;
+        gameOver = false;
+        frameCount = 0;
+      }
+
+      // Atalho acionado pela simulação de teclas do GestoLivre Studio
+      window.addEventListener("keydown", (e) => {
+        if (e.key === " " || e.key === "ArrowUp") {
+          e.preventDefault();
+          jump();
+        }
+      });
+
+      canvas.addEventListener("click", jump);
+
+      function update() {
+        if (gameOver) return;
+
+        frameCount++;
+        if (frameCount % 10 === 0) score++;
+
+        // Física do Dinossauro
+        dino.y += dino.vy;
+        dino.vy += 0.7; // Gravidade
+        if (dino.y >= 170) {
+          dino.y = 170;
+          dino.vy = 0;
+          dino.jumping = false;
+        }
+
+        // Gera Obstáculos (Cactos)
+        if (frameCount % 110 === 0) {
+          obstacles.push({ x: 800, y: 180, w: 22, h: 34 });
+        }
+
+        // Move Obstáculos
+        for (let i = 0; i < obstacles.length; i++) {
+          obstacles[i].x -= 6;
+
+          // Colisão AABB
+          if (
+            dino.x < obstacles[i].x + obstacles[i].w &&
+            dino.x + dino.w > obstacles[i].x &&
+            dino.y < obstacles[i].y + obstacles[i].h &&
+            dino.y + dino.h > obstacles[i].y
+          ) {
+            gameOver = true;
+          }
+        }
+
+        // Limpa obstáculos fora da tela
+        obstacles = obstacles.filter((obs) => obs.x > -50);
+
+        document.getElementById("score-text").textContent = `Pontuação: ${score}`;
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Chão
+        ctx.strokeStyle = "#475569";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 214);
+        ctx.lineTo(800, 214);
+        ctx.stroke();
+
+        // Dinossauro
+        ctx.fillStyle = "#38bdf8";
+        ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
+        // Olho
+        ctx.fillStyle = "#0f172a";
+        ctx.fillRect(dino.x + 22, dino.y + 6, 4, 4);
+
+        // Obstáculos (Cactos)
+        ctx.fillStyle = "#34d399";
+        for (const obs of obstacles) {
+          ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+        }
+
+        // Tela de Fim de Jogo
+        if (gameOver) {
+          ctx.fillStyle = "rgba(15, 23, 42, 0.8)";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          ctx.fillStyle = "#f43f5e";
+          ctx.font = "bold 28px monospace";
+          ctx.textAlign = "center";
+          ctx.fillText("FIM DE JOGO!", 400, 110);
+
+          ctx.fillStyle = "#f8fafc";
+          ctx.font = "16px monospace";
+          ctx.fillText("Abra a boca ou pressione Espaço para reiniciar", 400, 145);
+        }
+      }
+
+      function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+      }
+
+      loop();
+    </script>
+  </body>
+</html>

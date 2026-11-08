@@ -13,7 +13,13 @@ export class CameraManager {
   private running: boolean = false;
 
   constructor() {
-    this.selectedDeviceId = localStorage.getItem("gestolivre_camera_device_id");
+    if (typeof localStorage !== "undefined") {
+      try {
+        this.selectedDeviceId = localStorage.getItem("gestolivre_camera_device_id");
+      } catch {
+        // Ignora caso localStorage não esteja disponível
+      }
+    }
   }
 
   public isSupported(): boolean {

@@ -1,0 +1,42 @@
+name: CI - GestoLivre Suite
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  validate:
+    name: Typecheck, Tests, SDD Verification & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.18.0
+
+      - name: Configurar Node.js (v24)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - name: Instalar Dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: 1. Verificação SDD (Spec-Driven Development)
+        run: pnpm run verify:specs
+
+      - name: 2. Checagem Estrita de Tipos (TypeScript)
+        run: pnpm run typecheck
+
+      - name: 3. Testes Unitários e de Integração
+        run: pnpm run test
+
+      - name: 4. Build de Produção
+        run: pnpm run build
