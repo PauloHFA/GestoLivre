@@ -49,4 +49,32 @@ describe("ActionDispatcher", () => {
       })
     );
   });
+
+  it("despacha ação do tipo bridge para injeção via WebSocket", async () => {
+    const dispatcher = new ActionDispatcher();
+    const context = { gestureName: "boca-aberta", confidence: 0.92, timestamp: Date.now() };
+
+    const mockSend = vi.fn();
+    class MockWS {
+      static OPEN = 1;
+      readyState = 1;
+      onopen: (() => void) | null = null;
+      send = mockSend;
+      constructor() {
+        setTimeout(() => {
+          if (this.onopen) this.onopen();
+        }, 0);
+      }
+    }
+    (globalThis as any).WebSocket = MockWS;
+
+    const result = await dispatcher.dispatch(
+      "bridge",
+      { key: "PageDown" },
+      context
+    );
+
+    expect(result).toBe(true);
+    expect(mockSend).toHaveBeenCalledWith(JSON.stringify({ type: "key", key: "PageDown" }));
+  });
 });

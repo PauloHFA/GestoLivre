@@ -62,6 +62,37 @@ export function App() {
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0, progress: 0 });
   const headCursorRef = useRef<HeadCursor | null>(null);
 
+  // Desktop Bridge Status (RF-EXT-01)
+  const [bridgeConnected, setBridgeConnected] = useState(false);
+
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let timer: any = null;
+
+    const checkBridge = () => {
+      try {
+        ws = new WebSocket("ws://localhost:8765");
+        ws.onopen = () => {
+          setBridgeConnected(true);
+          ws?.close();
+        };
+        ws.onerror = () => {
+          setBridgeConnected(false);
+        };
+      } catch {
+        setBridgeConnected(false);
+      }
+    };
+
+    checkBridge();
+    timer = setInterval(checkBridge, 10000);
+
+    return () => {
+      if (timer) clearInterval(timer);
+      if (ws) ws.close();
+    };
+  }, []);
+
   useEffect(() => {
     headCursorRef.current = new HeadCursor({
       sensitivity: 2.8,
@@ -114,7 +145,7 @@ export function App() {
 
   // Novo Gesto Modal/Form
   const [newGestureName, setNewGestureName] = useState("");
-  const [newGestureActionType, setNewGestureActionType] = useState<"speech" | "key" | "webhook">("speech");
+  const [newGestureActionType, setNewGestureActionType] = useState<"speech" | "key" | "webhook" | "bridge">("speech");
   const [newGestureActionValue, setNewGestureActionValue] = useState("Olá, mundo!");
 
   // Elementos DOM
@@ -430,6 +461,7 @@ export function App() {
     if (newGestureActionType === "speech") actionPayload.text = newGestureActionValue;
     if (newGestureActionType === "key") actionPayload.key = newGestureActionValue;
     if (newGestureActionType === "webhook") actionPayload.url = newGestureActionValue;
+    if (newGestureActionType === "bridge") actionPayload.key = newGestureActionValue;
 
     const actionDef: ActionDefinition = {
       id: actionId,
@@ -535,6 +567,28 @@ export function App() {
 
         {/* Controles de Emergência e Indicadores */}
         <div className="flex items-center gap-3">
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+              bridgeConnected
+                ? "bg-indigo-950/80 border-indigo-500/40 text-indigo-300"
+                : "bg-slate-800/80 border-slate-700 text-slate-400"
+            }`}
+            title={
+              bridgeConnected
+                ? "Desktop Bridge ativo na porta 8765 (Injeção de teclas do SO habilitada)"
+                : "Desktop Bridge offline (porta 8765). Inicie 'pnpm --filter @gestolivre/bridge start' para controlar apps do SO"
+            }
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                bridgeConnected ? "bg-indigo-400 animate-pulse" : "bg-slate-500"
+              }`}
+            />
+            <span className="hidden sm:inline">
+              {bridgeConnected ? "Bridge Desktop Conectado" : "Bridge Desktop Offline"}
+            </span>
+          </div>
+
           <EmergencyButton isPaused={isPaused} onToggle={toggleEmergencyPause} />
 
           {cameraActive && (
@@ -882,11 +936,12 @@ export function App() {
                 />
                 <select
                   value={newGestureActionType}
-                  onChange={(e) => setNewGestureActionType(e.target.value as "speech" | "key" | "webhook")}
+                  onChange={(e) => setNewGestureActionType(e.target.value as "speech" | "key" | "webhook" | "bridge")}
                   className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none"
                 >
                   <option value="speech">Falar frase (Voz sintetizada)</option>
-                  <option value="key">Pressionar tecla (ex: ArrowRight)</option>
+                  <option value="key">Pressionar tecla no Navegador (ex: ArrowRight)</option>
+                  <option value="bridge">Injetar Tecla no SO Desktop (Bridge)</option>
                   <option value="webhook">Disparar Webhook HTTP</option>
                 </select>
                 <input
@@ -894,8 +949,8 @@ export function App() {
                   placeholder={
                     newGestureActionType === "speech"
                       ? "Frase a falar..."
-                      : newGestureActionType === "key"
-                      ? "Tecla (ArrowRight, Space)"
+                      : newGestureActionType === "key" || newGestureActionType === "bridge"
+                      ? "Tecla (ex: ArrowRight, PageDown, Space)"
                       : "https://minha-api.com"
                   }
                   value={newGestureActionValue}

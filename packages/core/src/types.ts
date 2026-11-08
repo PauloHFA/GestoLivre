@@ -48,7 +48,7 @@ export interface GestureDefinition {
   actionId?: string;
 }
 
-export type ActionType = "speech" | "key" | "dom" | "webhook";
+export type ActionType = "speech" | "key" | "dom" | "webhook" | "bridge";
 
 export interface ActionDefinition {
   id: string;

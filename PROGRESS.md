@@ -12,6 +12,7 @@ flowchart LR
     E2 --> E3["Entrega 3: PWA Offline, Exemplos CAA/Dino & CI SDD ✅"]
     E3 --> E4["Entrega 4: Auditoria WCAG 2.2 AA & Changesets ✅"]
     E4 --> E5["Entrega 5: Varredura com Switch & Cursor com Dwell ✅"]
+    E5 --> E6["Entrega 6: Desktop Bridge & Injeção no SO ✅"]
 ```
 
 ---
@@ -34,12 +35,13 @@ flowchart LR
 | **RF-TRN-07** | Treino | Alerta de sobreposição entre gestos / distância para neutro | ✅ Concluído | `packages/core/src/classifiers/knn.ts` | `packages/core/tests/classifier-knn.test.ts` |
 | **RF-ACT-01** | Ações | Teste ao vivo com gesto detectado, confiança e latência | ✅ Concluído | `packages/ui/src/LiveMetricsBadge.tsx` | `packages/core/tests/engine.test.ts` |
 | **RF-ACT-02** | Ações | Emissão de eventos `gesturestart`, `gesturehold`, `gestureend` | ✅ Concluído | `packages/core/src/engine/decision-engine.ts` | `packages/core/tests/engine.test.ts` |
-| **RF-ACT-03** | Ações | Mapeamento gesto $\rightarrow$ ação (Voz, Tecla, DOM, Webhook) | ✅ Concluído | `packages/actions/src/` | `packages/actions/tests/actions.test.ts` |
+| **RF-ACT-03** | Ações | Mapeamento gesto $\rightarrow$ ação (Voz, Tecla, DOM, Webhook, Bridge) | ✅ Concluído | `packages/actions/src/` | `packages/actions/tests/actions.test.ts` |
 | **RF-ACT-04** | Ações | Limiar, histerese, sustentação (`holdMs`) e *cooldown* | ✅ Concluído | `packages/core/src/engine/decision-engine.ts` | `packages/core/tests/engine.test.ts` |
 | **RF-ACT-05** | Ações | Pausa de emergência imediata (< 200 ms / tecla Escape) | ✅ Concluído | `packages/ui/src/EmergencyButton.tsx` | `packages/core/tests/engine.test.ts` |
 | **RF-ACT-06** | Ações | Registro (log) visual em tempo real dos disparos | ✅ Concluído | `apps/studio/src/App.tsx` | Integrado no Studio |
 | **RF-ACT-07** | Ações | Cursor de cabeça com deadzone e dwell click automático | ✅ Concluído | `packages/core/src/accessibility/head-cursor.ts` | `packages/core/tests/head-cursor.test.ts` |
 | **RF-ACT-08** | Ações | Modo varredura (scanning) com teclado virtual por comutador | ✅ Concluído | `packages/core/src/accessibility/scanning-engine.ts` | `packages/core/tests/scanning-engine.test.ts` |
+| **RF-EXT-01** | Desktop Bridge | Injeção de eventos no SO nativo via WebSocket local | ✅ Concluído | `packages/bridge/src/server.ts` & `injector.ts` | `packages/bridge/tests/bridge.test.ts` |
 | **RF-PRF-01** | Perfis | Persistência local em IndexedDB | ✅ Concluído | `packages/core/src/profile/profile-manager.ts` | `packages/core/tests/profile.test.ts` |
 | **RF-PRF-02** | Perfis | Exportar/importar perfil `.gestolivre.json` | ✅ Concluído | `packages/core/src/profile/profile-manager.ts` | `packages/core/tests/profile.test.ts` |
 | **RF-PRF-04** | Perfis | Exclusão de todos os dados locais com confirmação (LGPD) | ✅ Concluído | `packages/core/src/profile/profile-manager.ts` | `packages/core/tests/profile.test.ts` |
@@ -49,6 +51,7 @@ flowchart LR
 | **RNF-04** | Privacidade | Zero upload de imagens ou vídeo; apenas landmarks | ✅ Concluído | Arquitetura local | Verificado |
 | **RNF-05** | Privacidade | Funcionamento offline após 1º carregamento (PWA) | ✅ Concluído | `apps/studio/public/sw.js` & manifest | PWA Service Worker |
 | **RNF-07** | Acessibilidade | WCAG 2.2 AA (contraste, foco, alvos $\ge 44$px) | ✅ Concluído | `packages/ui/tests/accessibility.test.tsx` | 4 testes com `axe-core` |
+| **RNF-SEC-03**| Segurança | Isolamento local restrito (localhost), sem rede externa | ✅ Concluído | `packages/bridge/src/server.ts` | `packages/bridge/tests/bridge.test.ts` |
 
 ---
 
@@ -81,7 +84,7 @@ flowchart LR
 - **Exemplo 3 — Jogo do Dinossauro (`examples/03-dino-game`)**:
   - Jogo Canvas estilo Chrome Dino controlado por salto facial.
 - **CI SDD Automatizado**:
-  - Script `scripts/verify-specs.js` que audita 19 requisitos vinculados a testes.
+  - Script `scripts/verify-specs.js` que audita 22 requisitos vinculados a testes.
   - Workflow GitHub Actions (`.github/workflows/ci.yml`).
 
 ### Entrega 4: Auditoria de Acessibilidade (axe-core) e Publicação (Changesets)
@@ -105,4 +108,30 @@ flowchart LR
   - 4 testes unitários cobrindo calibração, deadzone e clique por tempo.
 - **Indicador Visual de Mira e Anel de Dwell Click**:
   - Componente `HeadCursorOverlay` com animação radial SVG integrada no Studio.
-- **Validação Global**: **31 testes automatizados passando (100%)** e 21 requisitos SDD verificados.
+
+### Entrega 6: Desktop Bridge & Injeção de Eventos no Sistema Operacional
+- **Pacote `@gestolivre/bridge` (RF-EXT-01 & RNF-SEC-03)**:
+  - Servidor WebSocket local seguro (`BridgeServer`) escutando na porta `8765` para recepção de comandos sem exposição externa.
+  - Injetor nativo multiplataforma (`InputInjector`):
+    - Windows: `SendKeys` via PowerShell.
+    - Linux: `xdotool`.
+    - macOS: AppleScript / `osascript`.
+  - CLI executável: `pnpm --filter @gestolivre/bridge start` ou `gestolivre-bridge`.
+- **Integração no `@gestolivre/actions`**:
+  - Novo executor `BridgeAction` registrado no `ActionDispatcher`.
+- **Integração no `GestoLivre Studio`**:
+  - Monitor de status do Bridge na barra superior com badge interativo (`Bridge SO Conectado` / `Offline`).
+  - Opção no formulário de gestos para mapear qualquer movimento para teclas nativas do SO.
+
+---
+
+## 🧪 Resumo da Suíte de Testes e Qualidade
+
+- **Total de Testes Unitários e de Integração**: **36 testes automatizados (100% de aprovação)**
+  - `@gestolivre/core`: 22 testes
+  - `@gestolivre/actions`: 3 testes
+  - `@gestolivre/bridge`: 4 testes
+  - `@gestolivre/ui`: 5 testes (incluindo axe-core WCAG 2.2 AA)
+  - `apps/studio`: 2 testes
+- **Auditoria SDD (`pnpm run verify:specs`)**: **22 requisitos com cobertura formal 1:1 verificada**.
+- **Tipagem TypeScript 5**: Modo estrito (`strict: true`, `noImplicitAny: true`, `noUnusedLocals: true`) com **0 erros**.
