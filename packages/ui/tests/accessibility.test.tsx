@@ -82,6 +82,11 @@ describe("Auditoria de Acessibilidade WCAG 2.2 AA (CA-RNF-04)", () => {
   });
 
   it("PresetPickerModal atende às diretrizes de diálogo modal acessível", async () => {
+    const html = ReactDOMServer.renderToString(
+      <PresetPickerModal isOpen={true} onClose={() => {}} onSelectPreset={() => {}} />
+    );
+    expect(html).toContain("ELA — Comunicação Rápida por Gestos Faciais");
+
     const results = await runAxeOnComponent(
       <PresetPickerModal isOpen={true} onClose={() => {}} onSelectPreset={() => {}} />
     );
