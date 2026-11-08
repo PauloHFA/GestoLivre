@@ -10,7 +10,8 @@
 flowchart LR
     E1["Entrega 1: Fundação & Core MVP ✅"] --> E2["Entrega 2: @gestolivre/ui & Revisão de Amostras ✅"]
     E2 --> E3["Entrega 3: PWA Offline, Exemplos CAA/Dino & CI SDD ✅"]
-    E3 --> E4["Entrega 4: Auditoria WCAG 2.2 AA (axe-core) & Changesets ✅"]
+    E3 --> E4["Entrega 4: Auditoria WCAG 2.2 AA & Changesets ✅"]
+    E4 --> E5["Entrega 5: Varredura com Switch & Cursor com Dwell ✅"]
 ```
 
 ---
@@ -37,6 +38,8 @@ flowchart LR
 | **RF-ACT-04** | Ações | Limiar, histerese, sustentação (`holdMs`) e *cooldown* | ✅ Concluído | `packages/core/src/engine/decision-engine.ts` | `packages/core/tests/engine.test.ts` |
 | **RF-ACT-05** | Ações | Pausa de emergência imediata (< 200 ms / tecla Escape) | ✅ Concluído | `packages/ui/src/EmergencyButton.tsx` | `packages/core/tests/engine.test.ts` |
 | **RF-ACT-06** | Ações | Registro (log) visual em tempo real dos disparos | ✅ Concluído | `apps/studio/src/App.tsx` | Integrado no Studio |
+| **RF-ACT-07** | Ações | Cursor de cabeça com deadzone e dwell click automático | ✅ Concluído | `packages/core/src/accessibility/head-cursor.ts` | `packages/core/tests/head-cursor.test.ts` |
+| **RF-ACT-08** | Ações | Modo varredura (scanning) com teclado virtual por comutador | ✅ Concluído | `packages/core/src/accessibility/scanning-engine.ts` | `packages/core/tests/scanning-engine.test.ts` |
 | **RF-PRF-01** | Perfis | Persistência local em IndexedDB | ✅ Concluído | `packages/core/src/profile/profile-manager.ts` | `packages/core/tests/profile.test.ts` |
 | **RF-PRF-02** | Perfis | Exportar/importar perfil `.gestolivre.json` | ✅ Concluído | `packages/core/src/profile/profile-manager.ts` | `packages/core/tests/profile.test.ts` |
 | **RF-PRF-04** | Perfis | Exclusão de todos os dados locais com confirmação (LGPD) | ✅ Concluído | `packages/core/src/profile/profile-manager.ts` | `packages/core/tests/profile.test.ts` |
@@ -90,4 +93,16 @@ flowchart LR
   - Scripts `pnpm changeset`, `pnpm version-packages` e `pnpm release` adicionados ao `package.json`.
 - **Guia de Contribuição**:
   - Criação de `CONTRIBUTING.md` com padrões de código, comandos e fluxo SDD.
-- **Validação Global**: **23 testes automatizados passando (100%)**.
+
+### Entrega 5: Recursos Avançados — Modo Varredura e Cursor por Cabeça com Dwell Click
+- **Motor de Varredura Bidimensional (RF-ACT-08)**:
+  - `ScanningEngine`: varredura automática por linhas e colunas com intervalo configurável; seleção em dois passos acionada por um único gesto/comutador.
+  - 4 testes unitários cobrindo transições de estado e ciclicidade.
+- **Exemplo 4 — Teclado Virtual por Varredura (`examples/04-scanning-keyboard`)**:
+  - Teclado acessível completo com palavras preditivas, letras A-Z, controles de edição, controle de velocidade e síntese de voz TTS.
+- **Motor de Cursor por Cabeça com Dwell Click (RF-ACT-07)**:
+  - `HeadCursor`: Converte o ponto do nariz em coordenadas $(X, Y)$ na tela, com sensibilidade configurável, deadzone para rejeição de tremor e clique automático por fixação temporal (*dwell click*).
+  - 4 testes unitários cobrindo calibração, deadzone e clique por tempo.
+- **Indicador Visual de Mira e Anel de Dwell Click**:
+  - Componente `HeadCursorOverlay` com animação radial SVG integrada no Studio.
+- **Validação Global**: **31 testes automatizados passando (100%)** e 21 requisitos SDD verificados.

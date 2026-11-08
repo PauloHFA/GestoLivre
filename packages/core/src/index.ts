@@ -20,6 +20,8 @@ export * from "./preprocessing/normalizer";
 export * from "./classifiers/knn";
 export * from "./engine/decision-engine";
 export * from "./profile/profile-manager";
+export * from "./accessibility/scanning-engine";
+export * from "./accessibility/head-cursor";
 
 export interface GestoLivreOptions {
   sources?: VisionSource[];

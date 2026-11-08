@@ -27,6 +27,7 @@ import {
   VisionSource,
   TrainingEvaluationReport,
   ClassificationPrediction,
+  HeadCursor,
 } from "@gestolivre/core";
 import { ActionDispatcher } from "@gestolivre/actions";
 import {
@@ -34,6 +35,7 @@ import {
   CountdownOverlay,
   LiveMetricsBadge,
   SampleGalleryModal,
+  HeadCursorOverlay,
 } from "@gestolivre/ui";
 
 export function App() {
@@ -54,6 +56,40 @@ export function App() {
   const engineRef = useRef<DecisionEngine>(new DecisionEngine());
   const profileManagerRef = useRef<ProfileManager>(new ProfileManager());
   const actionDispatcherRef = useRef<ActionDispatcher>(new ActionDispatcher());
+
+  // Cursor por Cabeça com Dwell Click (RF-ACT-07)
+  const [headCursorEnabled, setHeadCursorEnabled] = useState(false);
+  const [cursorPos, setCursorPos] = useState({ x: 0, y: 0, progress: 0 });
+  const headCursorRef = useRef<HeadCursor | null>(null);
+
+  useEffect(() => {
+    headCursorRef.current = new HeadCursor({
+      sensitivity: 2.8,
+      dwellTimeMs: 900,
+      onCursorMove: (x, y) => {
+        setCursorPos((prev) => ({ ...prev, x, y }));
+      },
+      onDwellProgress: (progress) => {
+        setCursorPos((prev) => ({ ...prev, progress }));
+      },
+      onDwellClick: (x, y) => {
+        const targetEl = document.elementFromPoint(x, y) as HTMLElement | null;
+        if (targetEl && typeof targetEl.click === "function") {
+          targetEl.click();
+        }
+        setActionLogs((prev) => [
+          {
+            id: Math.random().toString(36).substring(2, 9),
+            time: new Date().toLocaleTimeString(),
+            gesture: "Dwell Click (Cabeça)",
+            actionType: "Clique",
+            status: `Pos (${Math.round(x)}, ${Math.round(y)})`,
+          },
+          ...prev.slice(0, 19),
+        ]);
+      },
+    });
+  }, []);
 
   // Perfil e Gestos
   const [profile, setProfile] = useState<GestureProfile>(() =>
@@ -220,6 +256,12 @@ export function App() {
           if (showLandmarks) {
             drawLandmarks(ctx, frame, canvas.width, canvas.height);
           }
+        }
+
+        // Rastreamento de Cabeça para Cursor (RF-ACT-07)
+        if (headCursorEnabled && frame.face?.landmarks?.[1] && headCursorRef.current) {
+          const nose = frame.face.landmarks[1];
+          headCursorRef.current.update(nose.x, nose.y);
         }
 
         // Extrai vetor de características normalizado
@@ -639,12 +681,23 @@ export function App() {
                   Corpo
                 </button>
                 <button
-                  onClick={() => setShowLandmarks((prev) => !prev)}
+                  onClick={() => setShowLandmarks((prev: boolean) => !prev)}
                   className={`px-2.5 py-1 rounded font-medium ${
                     showLandmarks ? "bg-emerald-700 text-white" : "bg-slate-700 text-slate-400"
                   }`}
                 >
                   Pontos
+                </button>
+                <button
+                  onClick={() => setHeadCursorEnabled((prev: boolean) => !prev)}
+                  className={`px-2.5 py-1 rounded font-medium ${
+                    headCursorEnabled
+                      ? "bg-amber-600 text-white ring-2 ring-amber-400 animate-pulse"
+                      : "bg-slate-700 text-slate-400 hover:text-slate-200"
+                  }`}
+                  title="Controlar o cursor do mouse com a cabeça e clicar por fixação de tempo"
+                >
+                  {headCursorEnabled ? "🎯 Cursor Cabeça Ativo" : "🎯 Cursor Cabeça"}
                 </button>
               </div>
             </div>
@@ -926,6 +979,13 @@ export function App() {
           onDeleteAllSamples={handleDeleteAllSamples}
         />
       )}
+      {/* Overlay de Cursor por Cabeça com Dwell Click (RF-ACT-07) */}
+      <HeadCursorOverlay
+        x={cursorPos.x}
+        y={cursorPos.y}
+        progress={cursorPos.progress}
+        active={headCursorEnabled && cameraActive}
+      />
     </div>
   );
 }

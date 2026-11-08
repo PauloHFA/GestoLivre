@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GestoLivre — Teclado Virtual por Varredura com Comutador Único</title>
+    <style>
+      :root {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #090d16;
+        color: #f8fafc;
+      }
+      body {
+        margin: 0;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        box-sizing: border-box;
+      }
+      header {
+        text-align: center;
+        margin-bottom: 1.5rem;
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+        color: #38bdf8;
+        font-size: 2rem;
+      }
+      p.subtitle {
+        color: #94a3b8;
+        margin: 0;
+        font-size: 1rem;
+      }
+      .display-box {
+        max-width: 900px;
+        width: 100%;
+        background: #1e293b;
+        border: 2px solid #334155;
+        border-radius: 1rem;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+      }
+      #text-output {
+        font-size: 1.8rem;
+        min-height: 2.6rem;
+        color: #f8fafc;
+        word-break: break-word;
+        font-family: monospace;
+      }
+      .cursor-blink {
+        display: inline-block;
+        width: 12px;
+        height: 1.8rem;
+        background: #38bdf8;
+        vertical-align: middle;
+        animation: blink 1s infinite;
+      }
+      @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0; }
+      }
+      .keyboard-container {
+        max-width: 900px;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .keyboard-row {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.35rem;
+        border-radius: 0.75rem;
+        border: 3px solid transparent;
+        transition: all 0.15s ease;
+      }
+      .keyboard-row.highlighted-row {
+        background: #1e293b;
+        border-color: #f59e0b; /* Amarelo/Laranja de destaque */
+        box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
+      }
+      .key {
+        flex: 1;
+        background: #0f172a;
+        border: 2px solid #334155;
+        border-radius: 0.5rem;
+        padding: 1rem 0.5rem;
+        font-size: 1.25rem;
+        font-weight: bold;
+        text-align: center;
+        color: #e2e8f0;
+        cursor: pointer;
+        transition: all 0.1s ease;
+        user-select: none;
+      }
+      .key.special {
+        background: #1e1b4b;
+        border-color: #4338ca;
+        color: #a5b4fc;
+        flex: 1.5;
+        font-size: 1rem;
+      }
+      .key.predict {
+        background: #064e3b;
+        border-color: #059669;
+        color: #a7f3d0;
+        font-size: 1.1rem;
+      }
+      .key.highlighted-key {
+        background: #0284c7 !important;
+        border-color: #38bdf8 !important;
+        color: #ffffff !important;
+        transform: scale(1.08);
+        box-shadow: 0 0 20px rgba(56, 189, 248, 0.6);
+        z-index: 10;
+      }
+      .controls {
+        margin-top: 1.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        align-items: center;
+        justify-content: center;
+      }
+      .switch-button {
+        background: #10b981;
+        color: #022c22;
+        border: none;
+        padding: 1rem 2rem;
+        border-radius: 1rem;
+        font-size: 1.2rem;
+        font-weight: 800;
+        cursor: pointer;
+        box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+        transition: transform 0.1s, background 0.2s;
+      }
+      .switch-button:active {
+        transform: scale(0.96);
+      }
+      .speed-control {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.95rem;
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Teclado Virtual por Varredura</h1>
+      <p class="subtitle">Digitação acessível com acionamento por 1 único gesto ou comutador</p>
+    </header>
+
+    <div class="display-box">
+      <div id="text-output"><span class="cursor-blink"></span></div>
+    </div>
+
+    <div class="keyboard-container" id="keyboard"></div>
+
+    <div class="controls">
+      <button class="switch-button" id="btn-switch" onclick="triggerSwitch()">
+        🟢 ACIONAR GESTO / COMUTADOR (Espaço)
+      </button>
+
+      <div class="speed-control">
+        <label for="speed-range">Velocidade:</label>
+        <input type="range" id="speed-range" min="600" max="2200" step="200" value="1200" onchange="updateInterval(this.value)" />
+        <span id="speed-label">1.2s</span>
+      </div>
+    </div>
+
+    <script>
+      const grid = [
+        // Linha 0: Predição rápida de palavras frequentes
+        [
+          { label: "SIM", val: "Sim " },
+          { label: "NÃO", val: "Não " },
+          { label: "OBRIGADO", val: "Obrigado " },
+          { label: "POR FAVOR", val: "Por favor " },
+          { label: "AJUDA", val: "Ajuda " },
+        ],
+        // Linha 1: Letras A-H
+        [
+          { label: "A", val: "A" }, { label: "B", val: "B" }, { label: "C", val: "C" },
+          { label: "D", val: "D" }, { label: "E", val: "E" }, { label: "F", val: "F" },
+          { label: "G", val: "G" }, { label: "H", val: "H" }, { label: "I", val: "I" }
+        ],
+        // Linha 2: Letras J-R
+        [
+          { label: "J", val: "J" }, { label: "K", val: "K" }, { label: "L", val: "L" },
+          { label: "M", val: "M" }, { label: "N", val: "N" }, { label: "O", val: "O" },
+          { label: "P", val: "P" }, { label: "Q", val: "Q" }, { label: "R", val: "R" }
+        ],
+        // Linha 3: Letras S-Z
+        [
+          { label: "S", val: "S" }, { label: "T", val: "T" }, { label: "U", val: "U" },
+          { label: "V", val: "V" }, { label: "W", val: "W" }, { label: "X", val: "X" },
+          { label: "Y", val: "Y" }, { label: "Z", val: "Z" }, { label: ",", val: ", " }
+        ],
+        // Linha 4: Ações especiais
+        [
+          { label: "ESPAÇO", val: " ", special: true },
+          { label: "APAGAR", val: "BACKSPACE", special: true },
+          { label: "LIMPAR", val: "CLEAR", special: true },
+          { label: "🔊 FALAR FRASE", val: "SPEAK", special: true }
+        ]
+      ];
+
+      let state = "scanning-rows"; // 'scanning-rows' | 'scanning-cols'
+      let currentRow = 0;
+      let currentCol = 0;
+      let intervalMs = 1200;
+      let scanTimer = null;
+      let currentText = "";
+
+      const keyboardEl = document.getElementById("keyboard");
+      const textOutputEl = document.getElementById("text-output");
+      const speedLabel = document.getElementById("speed-label");
+
+      function renderKeyboard() {
+        keyboardEl.innerHTML = "";
+        grid.forEach((row, rIdx) => {
+          const rowDiv = document.createElement("div");
+          rowDiv.className = `keyboard-row ${rIdx === currentRow ? "highlighted-row" : ""}`;
+
+          row.forEach((item, cIdx) => {
+            const keyDiv = document.createElement("div");
+            let extraClass = item.special ? "special" : rIdx === 0 ? "predict" : "";
+            if (rIdx === currentRow && state === "scanning-cols" && cIdx === currentCol) {
+              extraClass += " highlighted-key";
+            }
+            keyDiv.className = `key ${extraClass}`;
+            keyDiv.textContent = item.label;
+            rowDiv.appendChild(keyDiv);
+          });
+
+          keyboardEl.appendChild(rowDiv);
+        });
+      }
+
+      function updateDisplay() {
+        textOutputEl.innerHTML = (currentText || "") + '<span class="cursor-blink"></span>';
+      }
+
+      function handleAction(val) {
+        if (val === "BACKSPACE") {
+          currentText = currentText.slice(0, -1);
+        } else if (val === "CLEAR") {
+          currentText = "";
+        } else if (val === "SPEAK") {
+          speakText(currentText);
+        } else {
+          currentText += val;
+        }
+        updateDisplay();
+      }
+
+      function speakText(text) {
+        if (!text) return;
+        if ("speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = "pt-BR";
+          window.speechSynthesis.speak(utterance);
+        }
+      }
+
+      function nextTick() {
+        if (state === "scanning-rows") {
+          currentRow = (currentRow + 1) % grid.length;
+        } else if (state === "scanning-cols") {
+          const colsCount = grid[currentRow].length;
+          currentCol = (currentCol + 1) % colsCount;
+        }
+        renderKeyboard();
+      }
+
+      function triggerSwitch() {
+        if (state === "scanning-rows") {
+          // Fixa linha e começa a varrer colunas
+          state = "scanning-cols";
+          currentCol = 0;
+          renderKeyboard();
+          restartTimer();
+        } else if (state === "scanning-cols") {
+          // Seleciona a tecla atual
+          const item = grid[currentRow][currentCol];
+          if (item) {
+            handleAction(item.val);
+          }
+          // Reinicia varredura na linha inicial
+          state = "scanning-rows";
+          currentCol = 0;
+          renderKeyboard();
+          restartTimer();
+        }
+      }
+
+      function restartTimer() {
+        if (scanTimer) clearInterval(scanTimer);
+        scanTimer = setInterval(nextTick, intervalMs);
+      }
+
+      function updateInterval(val) {
+        intervalMs = parseInt(val, 10);
+        speedLabel.textContent = (intervalMs / 1000).toFixed(1) + "s";
+        restartTimer();
+      }
+
+      // Atalho de teclado do comutador (espaço ou enter, disparado pelo GestoLivre)
+      window.addEventListener("keydown", (e) => {
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault();
+          triggerSwitch();
+        }
+      });
+
+      renderKeyboard();
+      restartTimer();
+    </script>
+  </body>
+</html>
