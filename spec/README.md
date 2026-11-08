@@ -23,6 +23,7 @@ Este diretório contém as especificações executáveis e critérios de aceite 
 | **RF-ACT-05** | Botão/atalho de emergência para suspender eventos em $\le 200$ms | [`ACT-01-disparo-sustentado.spec.md`](./ACT-01-disparo-sustentado.spec.md) | `packages/core/tests/engine.test.ts` | ✅ Implementado |
 | **RF-ACT-07** | Controle de cursor por cabeça com deadzone e dwell click | [`ACT-07-scanning-dwell.spec.md`](./ACT-07-scanning-dwell.spec.md) | `packages/core/tests/head-cursor.test.ts` | ✅ Implementado |
 | **RF-ACT-08** | Modo varredura (scanning) com teclado virtual por comutador | [`ACT-07-scanning-dwell.spec.md`](./ACT-07-scanning-dwell.spec.md) | `packages/core/tests/scanning-engine.test.ts` | ✅ Implementado |
+| **RF-ACT-09** | Rastreamento ocular por íris e micro-ajuste do cursor | [`ACC-03-rastreamento-iris.spec.md`](./ACC-03-rastreamento-iris.spec.md) | `packages/core/tests/iris-gaze.test.ts` | ✅ Implementado |
 | **RF-EXT-01** | Ponte Desktop WebSocket para injeção de teclas no SO | [`BRG-01-desktop-bridge.spec.md`](./BRG-01-desktop-bridge.spec.md) | `packages/bridge/tests/bridge.test.ts` | ✅ Implementado |
 | **RF-PRF-01** | Armazenamento de perfis em IndexedDB | [`PRF-01-export-import.spec.md`](./PRF-01-export-import.spec.md) | `packages/core/tests/profile.test.ts` | ✅ Implementado |
 | **RF-PRF-02** | Exportar/importar perfil `.gestolivre.json` | [`PRF-01-export-import.spec.md`](./PRF-01-export-import.spec.md) | `packages/core/tests/profile.test.ts` | ✅ Implementado |

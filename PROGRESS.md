@@ -41,6 +41,7 @@ flowchart LR
 | **RF-ACT-06** | Ações | Registro (log) visual em tempo real dos disparos | ✅ Concluído | `apps/studio/src/App.tsx` | Integrado no Studio |
 | **RF-ACT-07** | Ações | Cursor de cabeça com deadzone e dwell click automático | ✅ Concluído | `packages/core/src/accessibility/head-cursor.ts` | `packages/core/tests/head-cursor.test.ts` |
 | **RF-ACT-08** | Ações | Modo varredura (scanning) com teclado virtual por comutador | ✅ Concluído | `packages/core/src/accessibility/scanning-engine.ts` | `packages/core/tests/scanning-engine.test.ts` |
+| **RF-ACT-09** | Ações | Rastreamento ocular por íris e micro-ajuste do cursor | ✅ Concluído | `packages/core/src/accessibility/iris-gaze.ts` | `packages/core/tests/iris-gaze.test.ts` |
 | **RF-EXT-01** | Desktop Bridge | Injeção de eventos no SO nativo via WebSocket local | ✅ Concluído | `packages/bridge/src/server.ts` & `injector.ts` | `packages/bridge/tests/bridge.test.ts` |
 | **RF-PRF-01** | Perfis | Persistência local em IndexedDB | ✅ Concluído | `packages/core/src/profile/profile-manager.ts` | `packages/core/tests/profile.test.ts` |
 | **RF-PRF-02** | Perfis | Exportar/importar perfil `.gestolivre.json` | ✅ Concluído | `packages/core/src/profile/profile-manager.ts` | `packages/core/tests/profile.test.ts` |
@@ -134,15 +135,19 @@ flowchart LR
   - Diagnóstico automático ("Baixo/Estável", "Moderado", "Elevado/Espasmos") e sugestão de parâmetros ideais de `deadzone`, sensibilidade, sustentação (`holdMs`) e `cooldown`.
   - Componente modal `TremorCalibratorModal` em `@gestolivre/ui` com alvo animado e anel SVG de progresso radial integrado no Studio.
 
+- **Rastreamento Ocular por Íris (RF-ACT-09)**:
+  - `IrisGazeTracker` em `packages/core/src/accessibility/iris-gaze.ts`: calcula a direção do olhar pelas pupilas (landmarks 468 e 473) e cantos dos olhos.
+  - Modo híbrido Cabeça + Olhar integrado ao `HeadCursor`, permitindo micro-ajuste sub-pixel sem sobrecarga cervical.
+
 ---
 
 ## 🧪 Resumo da Suíte de Testes e Qualidade
 
-- **Total de Testes Unitários e de Integração**: **43 testes automatizados (100% de aprovação)**
-  - `@gestolivre/core`: 27 testes
+- **Total de Testes Unitários e de Integração**: **46 testes automatizados (100% de aprovação)**
+  - `@gestolivre/core`: 30 testes
   - `@gestolivre/actions`: 3 testes
   - `@gestolivre/bridge`: 4 testes
   - `@gestolivre/ui`: 7 testes (incluindo 6 testes axe-core WCAG 2.2 AA)
   - `apps/studio`: 2 testes
-- **Auditoria SDD (`pnpm run verify:specs`)**: **24 requisitos com cobertura formal 1:1 verificada**.
+- **Auditoria SDD (`pnpm run verify:specs`)**: **25 requisitos com cobertura formal 1:1 verificada**.
 - **Tipagem TypeScript 5**: Modo estrito (`strict: true`, `noImplicitAny: true`, `noUnusedLocals: true`) com **0 erros**.

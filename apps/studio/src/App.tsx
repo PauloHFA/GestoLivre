@@ -33,6 +33,7 @@ import {
   TremorAnalyzer,
   TremorAnalysisResult,
   AccessibilityPreset,
+  IrisGazeTracker,
 } from "@gestolivre/core";
 import { ActionDispatcher } from "@gestolivre/actions";
 import {
@@ -104,6 +105,7 @@ export function App() {
     headCursorRef.current = new HeadCursor({
       sensitivity: 2.8,
       dwellTimeMs: 900,
+      enableGazeRefinement: true,
       onCursorMove: (x, y) => {
         setCursorPos((prev) => ({ ...prev, x, y }));
       },
@@ -305,10 +307,11 @@ export function App() {
           }
         }
 
-        // Rastreamento de Cabeça para Cursor (RF-ACT-07)
+        // Rastreamento de Cabeça e Olhar para Cursor (RF-ACT-07/RF-ACT-09)
         if (headCursorEnabled && frame.face?.landmarks?.[1] && headCursorRef.current) {
           const nose = frame.face.landmarks[1];
-          headCursorRef.current.update(nose.x, nose.y);
+          const gaze = IrisGazeTracker.estimate(frame.face.landmarks);
+          headCursorRef.current.updateWithGaze(nose.x, nose.y, gaze);
         }
 
         // Calibração de Tremores em Repouso (RF-CAL-01)

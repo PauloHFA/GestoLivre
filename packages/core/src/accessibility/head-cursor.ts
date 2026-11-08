@@ -1,3 +1,5 @@
+import { IrisGazeEstimate } from "./iris-gaze";
+
 export interface HeadCursorOptions {
   sensitivity?: number;     // Multiplicador de sensibilidade (padrão: 2.5)
   deadzone?: number;        // Raio central em que pequenos movimentos são ignorados (padrão: 0.02)
@@ -6,6 +8,8 @@ export interface HeadCursorOptions {
   dwellRadius?: number;     // Raio de tolerância para manter dwell (padrão: 35px)
   screenWidth?: number;
   screenHeight?: number;
+  enableGazeRefinement?: boolean; // Micro-ajuste do cursor pela íris (gaze tracking)
+  gazeWeight?: number;           // Peso de influência do olhar fino (0 a 1, padrão: 0.20)
   onCursorMove?: (x: number, y: number) => void;
   onDwellProgress?: (progress: number) => void; // 0.0 a 1.0
   onDwellClick?: (x: number, y: number) => void;
@@ -19,6 +23,8 @@ export class HeadCursor {
   private dwellRadius: number;
   private screenWidth: number;
   private screenHeight: number;
+  private enableGazeRefinement: boolean;
+  private gazeWeight: number;
 
   private smoothX = 0;
   private smoothY = 0;
@@ -43,6 +49,8 @@ export class HeadCursor {
     this.dwellRadius = options.dwellRadius ?? 35;
     this.screenWidth = options.screenWidth ?? (typeof window !== "undefined" ? window.innerWidth : 1280);
     this.screenHeight = options.screenHeight ?? (typeof window !== "undefined" ? window.innerHeight : 720);
+    this.enableGazeRefinement = options.enableGazeRefinement ?? false;
+    this.gazeWeight = options.gazeWeight ?? 0.20;
 
     this.onCursorMove = options.onCursorMove;
     this.onDwellProgress = options.onDwellProgress;
@@ -75,6 +83,35 @@ export class HeadCursor {
 
   public setDwellTime(dwellTimeMs: number): void {
     this.dwellTimeMs = dwellTimeMs;
+  }
+
+  public setGazeRefinement(enabled: boolean, weight?: number): void {
+    this.enableGazeRefinement = enabled;
+    if (weight !== undefined) {
+      this.gazeWeight = weight;
+    }
+  }
+
+  /**
+   * Atualização híbrida Cabeça + Micro-ajuste Ocular por Íris (Gaze Tracking)
+   */
+  public updateWithGaze(
+    normalizedHeadX: number,
+    normalizedHeadY: number,
+    gazeEstimate?: IrisGazeEstimate | null,
+    now: number = Date.now()
+  ): {
+    x: number;
+    y: number;
+    dwellProgress: number;
+    clicked: boolean;
+  } {
+    if (this.enableGazeRefinement && gazeEstimate && gazeEstimate.confidence > 0.5) {
+      const deltaGazeX = gazeEstimate.offsetNormalizedX * 0.03 * this.gazeWeight;
+      const deltaGazeY = gazeEstimate.offsetNormalizedY * 0.03 * this.gazeWeight;
+      return this.update(normalizedHeadX + deltaGazeX, normalizedHeadY + deltaGazeY, now);
+    }
+    return this.update(normalizedHeadX, normalizedHeadY, now);
   }
 
   /**
